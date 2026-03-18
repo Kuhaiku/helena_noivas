@@ -1,78 +1,70 @@
-"use client"
-
-import { useState } from "react"
 import Image from "next/image"
-import { Plus, Check, Expand } from "lucide-react"
-import { useCartStore, type Dress } from "@/lib/store"
-import { DressGallery } from "@/components/helena/dress-gallery"
-import { cn } from "@/lib/utils"
+import type { Product } from "@/lib/admin-store"
 
 interface DressCardProps {
-  dress: Dress
+  dress: Product
 }
 
 export function DressCard({ dress }: DressCardProps) {
-  const { addItem, removeItem, items } = useCartStore()
-  const inCart = items.some((i) => i.id === dress.id)
-  const [galleryOpen, setGalleryOpen] = useState(false)
-
-  const toggle = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (inCart) removeItem(dress.id)
-    else addItem(dress)
-  }
+  // Pega a primeira imagem do array, ou uma imagem de fallback se não houver nenhuma
+  const coverImage = dress.images && dress.images.length > 0 
+    ? dress.images[0] 
+    : "/images/vestido-aurora.jpg"
 
   return (
-    <>
-      <article className="group relative bg-card rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
-        {/* Imagem do vestido */}
-        <button
-          className="relative w-full aspect-[3/4] overflow-hidden bg-secondary block cursor-zoom-in"
-          onClick={() => setGalleryOpen(true)}
-          aria-label={`Ver galeria de fotos de ${dress.name}`}
-        >
-          <Image
-            src={dress.image}
-            alt={`Vestido ${dress.name}`}
-            fill
-            className="object-cover object-top group-hover:scale-105 transition-transform duration-500"
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          />
-          {/* Expand hint */}
-          <span className="absolute top-3 right-3 w-7 h-7 rounded-full bg-background/70 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <Expand size={13} className="text-foreground" />
+    <div className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all hover:shadow-md">
+      
+      {/* ── Imagem do Vestido ── */}
+      <div className="relative aspect-[3/4] overflow-hidden bg-secondary/50">
+        <Image
+          src={coverImage}
+          alt={dress.name}
+          fill
+          className="object-cover object-top transition-transform duration-500 group-hover:scale-105"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        />
+        
+        {/* Etiqueta de Destaque */}
+        {dress.featured && (
+          <span className="absolute top-3 left-3 bg-primary text-primary-foreground text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide shadow-sm">
+            Destaque
           </span>
-        </button>
-
-        {/* Info do vestido */}
-        <div className="relative px-4 pt-3 pb-4">
-          {dress.category && (
-            <p className="text-[10px] font-sans tracking-[0.2em] uppercase text-primary mb-0.5">{dress.category}</p>
-          )}
-          <h3 className="font-serif text-base md:text-lg text-foreground text-balance leading-snug">
+        )}
+      </div>
+      
+      {/* ── Informações do Vestido ── */}
+      <div className="p-4 flex flex-col flex-grow justify-between gap-3">
+        <div>
+          <p className="text-[10px] tracking-[0.2em] uppercase text-primary mb-1.5">
+            {dress.category}
+          </p>
+          <h3 className="font-serif text-lg font-medium text-foreground leading-tight line-clamp-2">
             {dress.name}
           </h3>
-          <p className="text-muted-foreground text-xs tracking-widest uppercase mt-0.5">
-            Tamanho {dress.size}
-          </p>
-
-          {/* Botão circular de adicionar */}
-          <button
-            onClick={toggle}
-            aria-label={inCart ? "Remover da sacola" : "Adicionar à sacola"}
-            className={cn(
-              "absolute bottom-4 right-4 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm",
-              inCart
-                ? "bg-foreground text-background"
-                : "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95"
+        </div>
+        
+        <div className="flex justify-between items-end pt-3 border-t border-border/50 mt-auto">
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground mb-0.5">Tamanho {dress.size}</span>
+            
+            {/* Controle de exibição de preço (Regra de Negócio) */}
+            {dress.showPrice ? (
+              <span className="font-medium text-foreground">
+                R$ {(dress.rentalPrice || 0).toLocaleString('pt-BR')}
+              </span>
+            ) : (
+              <span className="text-[11px] text-muted-foreground italic font-medium">
+                Preço sob consulta
+              </span>
             )}
-          >
-            {inCart ? <Check size={16} strokeWidth={2.5} /> : <Plus size={18} strokeWidth={2.5} />}
+          </div>
+          
+          <button className="text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors uppercase tracking-wider bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-md">
+            Ver Detalhes
           </button>
         </div>
-      </article>
+      </div>
 
-      <DressGallery dress={dress} open={galleryOpen} onClose={() => setGalleryOpen(false)} />
-    </>
+    </div>
   )
 }
