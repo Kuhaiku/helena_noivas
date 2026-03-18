@@ -434,9 +434,7 @@ function SectionEstoque() {
     if (!confirm("Tem certeza que deseja apagar esta peça do estoque? Esta ação não pode ser desfeita.")) return;
 
     try {
-      const response = await fetch(`/api/produtos?id=${id}`, {
-        method: 'DELETE',
-      });
+      const response = await fetch(`/api/produtos?id=${id}`, { method: 'DELETE' });
       const result = await response.json();
       
       if (result.success) {
@@ -487,21 +485,19 @@ function SectionEstoque() {
                   <td className="px-5 py-3"><StockStatusBadge status={item.stock || 'livre'} /></td>
                   <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
                     
-                    {/* Botão Editar (Lápis) */}
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-7 w-7 p-0 text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                       onClick={() => {
                         setEditingProduct(item)
-                        setSection("cadastro") // Redireciona para o form de cadastro
+                        setSection("cadastro")
                       }}
                       title="Editar Peça"
                     >
                       <Pencil size={14} />
                     </Button>
 
-                    {/* Botão Apagar (Lixeira) */}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -534,14 +530,36 @@ function SectionEstoque() {
 function SectionConfiguracoes() {
   const { storeConfig, setStoreConfig } = useAdminStore()
   
-  // Estado local para os inputs
   const [config, setConfig] = useState(storeConfig)
   const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  const handleSave = () => {
-    setStoreConfig(config)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+  // Sincroniza caso venha do backend
+  useEffect(() => {
+    setConfig(storeConfig)
+  }, [storeConfig])
+
+  const handleSave = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/configuracoes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      })
+      
+      if (res.ok) {
+        setStoreConfig(config)
+        setSaved(true)
+        setTimeout(() => setSaved(false), 3000)
+      } else {
+        alert("Erro ao salvar as configurações no banco de dados.")
+      }
+    } catch (e) {
+      alert("Falha de conexão com a API.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -560,7 +578,6 @@ function SectionConfiguracoes() {
 
       <div className="bg-white rounded-xl border border-border p-6 flex flex-col gap-6">
         
-        {/* Janela de Locação */}
         <div>
           <p className="text-sm font-semibold text-foreground mb-1">Janela de Locação e Bloqueio</p>
           <p className="text-xs text-muted-foreground mb-4">
@@ -594,7 +611,6 @@ function SectionConfiguracoes() {
 
         <Separator />
 
-        {/* Atendimento */}
         <div>
           <p className="text-sm font-semibold text-foreground mb-1">Capacidade de Atendimento</p>
           <p className="text-xs text-muted-foreground mb-4">
@@ -615,7 +631,6 @@ function SectionConfiguracoes() {
 
         <Separator />
 
-        {/* Finanças */}
         <div>
           <p className="text-sm font-semibold text-foreground mb-1">Regras Financeiras</p>
           <p className="text-xs text-muted-foreground mb-4">
@@ -645,8 +660,8 @@ function SectionConfiguracoes() {
           </ul>
         </div>
 
-        <Button onClick={handleSave} className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold mt-2">
-          <Save size={16} /> Salvar Configurações
+        <Button onClick={handleSave} disabled={loading} className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold mt-2">
+          <Save size={16} /> {loading ? "Salvando..." : "Salvar Configurações"}
         </Button>
       </div>
     </div>
@@ -670,7 +685,6 @@ function SectionCadastro() {
   const [saved, setSaved] = useState(false)
   const [coverIdx, setCoverIdx] = useState(0)
 
-  // Popula o formulário se entrarmos no modo de edição
   useEffect(() => {
     if (editingProduct) {
       setForm({
@@ -744,7 +758,6 @@ function SectionCadastro() {
 
     try {
       if (editingProduct) {
-        // --- MODO: ATUALIZAR (PUT) ---
         const response = await fetch(`/api/produtos?id=${editingProduct.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -758,13 +771,12 @@ function SectionCadastro() {
           setTimeout(() => {
             setSaved(false)
             setEditingProduct(null)
-            setSection("estoque") // Regressa automaticamente para o estoque
+            setSection("estoque")
           }, 1500)
         } else {
           alert("Erro ao atualizar o produto no banco de dados.")
         }
       } else {
-        // --- MODO: CRIAR (POST) ---
         const response = await fetch('/api/produtos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1085,7 +1097,6 @@ function SectionCadastro() {
               </div>
             )}
 
-            {/* BOTÃO DE UPLOAD REAL */}
             <div>
               <input
                 type="file"
@@ -1361,21 +1372,30 @@ function SectionColecoes() {
 
 // ─── Page Principal ───────────────────────────────────────────────────────────
 export default function AdminPage() {
-  const { section, setOrders, setProducts } = useAdminStore()
+  const { section, setOrders, setProducts, setStoreConfig } = useAdminStore()
 
   useEffect(() => {
     async function carregarDadosReais() {
       try {
+        // 1. Carrega os Pedidos
         const resPedidos = await fetch('/api/pedidos')
         const dadosPedidos = await resPedidos.json()
         if (dadosPedidos && !dadosPedidos.error && Array.isArray(dadosPedidos)) {
           setOrders(dadosPedidos)
         }
 
+        // 2. Carrega os Produtos
         const resProdutos = await fetch('/api/produtos')
         const dadosProdutos = await resProdutos.json()
         if (dadosProdutos && !dadosProdutos.error && Array.isArray(dadosProdutos)) {
           setProducts(dadosProdutos)
+        }
+        
+        // 3. Carrega as Configurações da Loja
+        const resConfig = await fetch('/api/configuracoes')
+        const dadosConfig = await resConfig.json()
+        if (dadosConfig && !dadosConfig.error) {
+          setStoreConfig(dadosConfig)
         }
       } catch (error) {
         console.error("Erro ao carregar do MySQL:", error)
@@ -1383,7 +1403,7 @@ export default function AdminPage() {
     }
 
     carregarDadosReais()
-  }, [setOrders, setProducts])
+  }, [setOrders, setProducts, setStoreConfig])
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc] font-sans">
