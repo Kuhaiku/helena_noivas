@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAdminStore } from "@/lib/admin-store"
 import { AdminSidebar } from "@/components/admin/admin-sidebar"
 import { MetricCard } from "@/components/admin/metric-card"
@@ -70,7 +70,7 @@ function SectionDashboard() {
   const totalNoivas = orders.length
   const fechados = orders.filter((o) => o.status === "compareceu").length
   const taxaConversao = totalNoivas > 0 ? Math.round((fechados / totalNoivas) * 100) : 0
-  const pendentes = orders.filter((o) => o.status === "pendente").length
+  const pendentes = orders.filter((o) => o.status === "pendente" || o.status === "novo").length
   const faturamentoPendente = orders
     .filter((o) => o.status === "confirmado" && o.totalValue)
     .reduce((s, o) => s + (o.totalValue ?? 0) - (o.signalPaid ?? 0), 0)
@@ -170,7 +170,7 @@ function SectionDashboard() {
                     <div>
                       <p className="text-sm font-medium text-foreground">{order.clientName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {order.items.length} peça{order.items.length !== 1 ? "s" : ""} &middot; {order.clientPhone}
+                        {order.items?.length || 0} peça{order.items?.length !== 1 ? "s" : ""} &middot; {order.clientPhone}
                       </p>
                     </div>
                   </div>
@@ -286,7 +286,7 @@ function SectionDashboard() {
                       <p className="text-xs text-muted-foreground">{order.clientPhone}</p>
                     </td>
                     <td className="px-5 py-3 text-muted-foreground">{new Date(order.provaDate + "T12:00:00").toLocaleDateString("pt-BR")} · {order.provaTime}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{order.items.length} peça{order.items.length !== 1 ? "s" : ""}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{order.items?.length || 0} peça{order.items?.length !== 1 ? "s" : ""}</td>
                     <td className="px-5 py-3"><OrderStatusBadge status={order.status} /></td>
                     <td className="px-5 py-3 text-right">
                       <Button
@@ -382,7 +382,7 @@ function SectionPedidos() {
             </thead>
             <tbody>
               {filtered.map((order) => {
-                const total = order.totalValue ?? order.items.reduce((s, i) => s + i.price - (i.discount ?? 0), 0)
+                const total = order.totalValue ?? (order.items || []).reduce((s, i) => s + i.price - (i.discount ?? 0), 0)
                 return (
                   <tr key={order.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{order.id}</td>
@@ -435,13 +435,17 @@ function SectionPedidos() {
 
 // ─── Estoque ─────────────────────────────────────────────────────────────────
 function SectionEstoque() {
-  const { catalog, overrideStockStatus } = useAdminStore()
+  const { catalog, products, overrideStockStatus } = useAdminStore()
+
+  // Como o catálogo rudimentar foi apagado, mostramos os produtos reais aqui 
+  // (Na próxima fase vamos criar a aba real de SKUs, por agora listamos os produtos)
+  const itensParaMostrar = products.length > 0 ? products : catalog
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Gestão de Estoque</h1>
-        <p className="text-sm text-muted-foreground">{catalog.length} peças cadastradas</p>
+        <p className="text-sm text-muted-foreground">{itensParaMostrar.length} peças cadastradas</p>
       </div>
 
       <div className="bg-white rounded-xl border border-border overflow-hidden">
@@ -458,38 +462,45 @@ function SectionEstoque() {
               </tr>
             </thead>
             <tbody>
-              {catalog.map((dress) => (
-                <tr key={dress.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+              {itensParaMostrar.map((item: any) => (
+                <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <div className="relative w-10 h-12 rounded-md overflow-hidden bg-border shrink-0">
-                        <Image src={dress.image} alt={dress.name} fill className="object-cover" />
+                        <Image src={item.image || (item.images && item.images[0]) || "/placeholder.jpg"} alt={item.name} fill className="object-cover" />
                       </div>
-                      <span className="font-medium text-foreground">{dress.name}</span>
+                      <span className="font-medium text-foreground">{item.name}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{dress.sku}</td>
-                  <td className="px-5 py-3 text-muted-foreground">{dress.size}</td>
-                  <td className="px-5 py-3 font-medium text-foreground">R$ {dress.price.toLocaleString("pt-BR")}</td>
-                  <td className="px-5 py-3"><StockStatusBadge status={dress.stock} /></td>
+                  <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{item.sku}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{item.size}</td>
+                  <td className="px-5 py-3 font-medium text-foreground">R$ {(item.price || item.rentalPrice || 0).toLocaleString("pt-BR")}</td>
+                  <td className="px-5 py-3"><StockStatusBadge status={item.stock || 'livre'} /></td>
                   <td className="px-5 py-3 text-right">
-                    {dress.stock !== "livre" && (
+                    {item.stock !== "livre" && (
                       <Button
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
-                        onClick={() => overrideStockStatus(dress.id, "livre")}
+                        onClick={() => overrideStockStatus(item.id, "livre")}
                         title="Forçar disponibilidade"
                       >
                         <Zap size={11} /> Forçar Livre
                       </Button>
                     )}
-                    {dress.stock === "livre" && (
+                    {item.stock === "livre" && (
                       <span className="text-xs text-muted-foreground">Disponível</span>
                     )}
                   </td>
                 </tr>
               ))}
+              {itensParaMostrar.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-muted-foreground">
+                    O teu estoque está completamente vazio. Vai a "Cadastro de Produto" para adicionar a tua primeira peça!
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -624,18 +635,39 @@ function SectionCadastro() {
     if (coverIdx === from) setCoverIdx(to)
   }
 
-  const handleSave = () => {
+  // --- FUNÇÃO ATUALIZADA PARA ENVIAR PARA A API MYSQL ---
+  const handleSave = async () => {
     if (!form.name || !form.sku) return
-    const product: Product = {
-      ...form,
-      id: `p${Date.now()}`,
-      createdAt: new Date().toISOString().split("T")[0],
+
+    try {
+      // 1. Envia os dados para a API
+      const response = await fetch('/api/produtos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        // 2. Se salvou no MySQL com sucesso, atualiza a tela
+        const product: Product = {
+          ...form,
+          id: result.produtoId.toString(), // Usa o ID real gerado pelo banco
+          createdAt: new Date().toISOString().split("T")[0],
+        }
+        addProduct(product)
+        setSaved(true)
+        setForm(emptyForm())
+        setCoverIdx(0)
+        setTimeout(() => setSaved(false), 3000)
+      } else {
+        alert("Erro ao salvar o produto no banco de dados.")
+      }
+    } catch (error) {
+      console.error(error)
+      alert("Erro de conexão com a API.")
     }
-    addProduct(product)
-    setSaved(true)
-    setForm(emptyForm())
-    setCoverIdx(0)
-    setTimeout(() => setSaved(false), 3000)
   }
 
   const previewImage = form.images[coverIdx] ?? null
@@ -1169,7 +1201,31 @@ function SectionColecoes() {
 
 // ─── Page Principal ───────────────────────────────────────────────────────────
 export default function AdminPage() {
-  const { section } = useAdminStore()
+  const { section, setOrders, setProducts } = useAdminStore() // <--- setProducts aqui
+
+  useEffect(() => {
+    async function carregarDadosReais() {
+      try {
+        // 1. Carrega os Pedidos do MySQL
+        const resPedidos = await fetch('/api/pedidos')
+        const dadosPedidos = await resPedidos.json()
+        if (dadosPedidos && !dadosPedidos.error && Array.isArray(dadosPedidos)) {
+          setOrders(dadosPedidos)
+        }
+
+        // 2. Carrega os Produtos (Vestidos) do MySQL
+        const resProdutos = await fetch('/api/produtos')
+        const dadosProdutos = await resProdutos.json()
+        if (dadosProdutos && !dadosProdutos.error && Array.isArray(dadosProdutos)) {
+          setProducts(dadosProdutos)
+        }
+      } catch (error) {
+        console.error("Erro ao carregar do MySQL:", error)
+      }
+    }
+
+    carregarDadosReais()
+  }, [setOrders, setProducts]) // <--- Duas dependências
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc] font-sans">

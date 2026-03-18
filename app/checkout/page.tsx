@@ -66,14 +66,39 @@ export default function CheckoutPage() {
     )
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!isValid) return
-    const msg = buildWhatsAppMessage()
-    window.open(`https://wa.me/5521999990000?text=${msg}`, "_blank")
-    setSubmitted(true)
-  }
 
+    // 1. Prepara os dados para enviar para o banco de dados
+    const payload = {
+      name: form.name,
+      whatsapp: form.whatsapp,
+      date: form.date,
+      time: form.time,
+    }
+
+    try {
+      // 2. Chama a nossa nova API para salvar no MySQL
+      const response = await fetch('/api/pedidos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (response.ok) {
+        // 3. Se gravou com sucesso no banco, abre o WhatsApp para a loja
+        const msg = buildWhatsAppMessage()
+        window.open(`https://wa.me/5521999990000?text=${msg}`, "_blank")
+        setSubmitted(true)
+      } else {
+        alert("Ocorreu um erro ao agendar. Tente novamente.")
+      }
+    } catch (error) {
+      console.error(error)
+      alert("Erro de conexão com o servidor.")
+    }
+  }
   if (submitted) {
     return (
       <div className="min-h-screen bg-background">
