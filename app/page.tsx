@@ -3,14 +3,12 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { ArrowRight, ArrowLeft, Eye } from "lucide-react"
 import { Header } from "@/components/helena/header"
 import { DressCard } from "@/components/helena/dress-card"
 import { CartSidebar } from "@/components/helena/cart-sidebar"
 import { OnboardingModal } from "@/components/helena/onboarding-modal"
 import { useAdminStore } from "@/lib/admin-store"
 import { cn } from "@/lib/utils"
-
 
 const CATEGORIES = [
   { key: "todos", label: "Todos" },
@@ -20,61 +18,17 @@ const CATEGORIES = [
   { key: "acessorios", label: "Acessórios" },
 ]
 
-const DRESSES = [
-  {
-    id: "aurora", name: "Aurora", size: "34 ao 44", price: "", image: "/images/vestido-aurora.jpg",
-    category: "Noiva", collection: "Primavera 2026",
-    description: "Linha A com renda francesa, cauda catedral e decote coração.",
-    images: ["/images/vestido-aurora.jpg", "/images/vestido-aurora.jpg", "/images/vestido-aurora.jpg"],
-  },
-  {
-    id: "isabela", name: "Isabela", size: "36 ao 46", price: "", image: "/images/vestido-isabela.jpg",
-    category: "Noiva", collection: "Primavera 2026",
-    description: "Sereia off-shoulder em crepe italiano com cauda longa.",
-    images: ["/images/vestido-isabela.jpg", "/images/vestido-isabela.jpg"],
-  },
-  {
-    id: "valentina", name: "Valentina", size: "34 ao 42", price: "", image: "/images/vestido-valentina.jpg",
-    category: "Noiva", collection: "Verão 2025",
-    description: "Ballgown com saia volumosa em tule camadas e corpete bordado.",
-    images: ["/images/vestido-valentina.jpg", "/images/vestido-valentina.jpg"],
-  },
-  {
-    id: "sofia", name: "Sofia", size: "36 ao 44", price: "", image: "/images/vestido-sofia.jpg",
-    category: "Festa", collection: "Cápsula 2025",
-    description: "Vestido midi em satin drapeado com decote V. Estilo contemporâneo.",
-    images: ["/images/vestido-sofia.jpg"],
-  },
-  {
-    id: "luna", name: "Luna", size: "34 ao 46", price: "", image: "/images/vestido-luna.jpg",
-    category: "Noiva", collection: "Primavera 2026",
-    description: "Boho-chic com renda floral total e manga longa em sino.",
-    images: ["/images/vestido-luna.jpg", "/images/vestido-luna.jpg"],
-  },
-  {
-    id: "bianca", name: "Bianca", size: "36 ao 42", price: "", image: "/images/vestido-bianca.jpg",
-    category: "Noiva", collection: "Verão 2025",
-    description: "Minimalista linha reta em satin puro com costas abertas.",
-    images: ["/images/vestido-bianca.jpg"],
-  },
-]
-
 export default function VitrinePage() {
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
   const [activeCategory, setActiveCategory] = useState("todos")
   const [weddingDate, setWeddingDate] = useState<string | null>(null)
-  const [seasonalIdx, setSeasonalIdx] = useState(0)
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  const { collections, products } = useAdminStore()
+  const { collections, products, setProducts } = useAdminStore()
 
-  // Coleção sazonal ativa
-  const activeCollection = collections.find((c) => c.active) ?? null
-  const seasonalProducts = activeCollection
-    ? products.filter((p) => activeCollection.productIds.includes(p.id) && !p.hidden)
-    : []
-
+  // Onboarding
   useEffect(() => {
     const seen = sessionStorage.getItem("helena-onboarding")
     if (!seen) {
@@ -82,6 +36,24 @@ export default function VitrinePage() {
       return () => clearTimeout(timer)
     }
   }, [])
+
+  // ── Puxar Vestidos do Banco de Dados ──
+  useEffect(() => {
+    async function fetchVitrine() {
+      try {
+        const res = await fetch('/api/produtos')
+        const dados = await res.json()
+        if (Array.isArray(dados)) {
+          setProducts(dados)
+        }
+      } catch (error) {
+        console.error("Erro ao buscar vitrine:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchVitrine()
+  }, [setProducts])
 
   const handleOnboardingChoice = (hasDate: boolean, date?: string) => {
     sessionStorage.setItem("helena-onboarding", "done")
@@ -94,16 +66,18 @@ export default function VitrinePage() {
     router.push("/checkout")
   }
 
-  // Vitrine: apenas peças visíveis (não ocultas)
-  const visibleDresses = DRESSES.filter((d) => {
-    const product = products.find((p) => p.id === d.id || p.name.toLowerCase() === d.name.toLowerCase())
-    return !product?.hidden
-  })
-
+  // Lógica da Vitrine Real
+  const visibleDresses = products.filter((d) => !d.hidden)
   const filtered =
     activeCategory === "todos"
       ? visibleDresses
       : visibleDresses.filter((d) => d.category.toLowerCase() === activeCategory)
+
+  // Lógica da Coleção Sazonal
+  const activeCollection = collections.find((c) => c.active) ?? null
+  const seasonalProducts = activeCollection
+    ? products.filter((p) => activeCollection.productIds.includes(p.id) && !p.hidden)
+    : []
 
   return (
     <div className="min-h-screen bg-background">
@@ -144,7 +118,7 @@ export default function VitrinePage() {
         </div>
       </section>
 
-      {/* ── Destaque Sazonal (logo abaixo do hero, quando há coleção ativa) ──── */}
+      {/* ── Destaque Sazonal ──── */}
       {activeCollection && seasonalProducts.length > 0 && (
         <section className="w-full bg-secondary/60 border-y border-border">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
@@ -168,26 +142,11 @@ export default function VitrinePage() {
             </div>
 
             <div className="flex gap-4 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-none">
-              {seasonalProducts.map((product) => {
-                const dress = {
-                  id: product.id,
-                  name: product.name,
-                  size: product.size,
-                  price: product.showPrice && product.rentalPrice > 0
-                    ? `R$ ${product.rentalPrice.toLocaleString("pt-BR")}`
-                    : "",
-                  image: product.images[0] ?? "/images/vestido-aurora.jpg",
-                  images: product.images,
-                  category: product.category,
-                  collection: product.collection,
-                  description: product.description,
-                }
-                return (
-                  <div key={product.id} className="snap-start shrink-0 w-[220px] sm:w-[260px]">
-                    <DressCard dress={dress} />
-                  </div>
-                )
-              })}
+              {seasonalProducts.map((product) => (
+                <div key={product.id} className="snap-start shrink-0 w-[220px] sm:w-[260px]">
+                  <DressCard dress={product} />
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -232,7 +191,11 @@ export default function VitrinePage() {
 
       {/* Grid de vestidos */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
-        {filtered.length > 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-20 text-muted-foreground text-sm">
+            Carregando a coleção exclusiva...
+          </div>
+        ) : filtered.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4 md:gap-6">
             {filtered.map((dress) => (
               <DressCard key={dress.id} dress={dress} />
@@ -247,11 +210,6 @@ export default function VitrinePage() {
             </button>
           </div>
         )}
-
-        <p className="text-center text-xs text-muted-foreground mt-12 leading-relaxed max-w-md mx-auto">
-          Clique na foto para ver a galeria completa. Toque no{" "}
-          <span className="text-primary font-semibold">+</span> para adicionar à sacola e agendar sua prova presencial.
-        </p>
       </section>
 
       {/* Footer */}
