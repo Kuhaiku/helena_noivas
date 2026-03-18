@@ -7,11 +7,38 @@ import { Trash2, ShieldCheck, ChevronLeft, Calendar, Clock, User, Smartphone, Me
 import { Header } from "@/components/helena/header"
 import { useCartStore } from "@/lib/store"
 
-const TIME_SLOTS = ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"]
+// Gera intervalos perfeitos (ex: de 60 em 60 min)
+function gerarHorarios(horaInicio: string, horaFim: string, intervaloMinutos: number = 60) {
+  const horarios = [];
+  let [horaAtual, minutoAtual] = horaInicio.split(':').map(Number);
+  const [horaFimNum, minutoFimNum] = horaFim.split(':').map(Number);
+
+  // Calcula os blocos de hora
+  while (horaAtual < horaFimNum || (horaAtual === horaFimNum && minutoAtual < minutoFimNum)) {
+    const horarioFormatado = `${String(horaAtual).padStart(2, '0')}:${String(minutoAtual).padStart(2, '0')}`;
+    
+    // Se o próximo bloco ultrapassar o fim do expediente, não adiciona
+    if (horaAtual === horaFimNum && minutoAtual === minutoFimNum) break;
+
+    horarios.push(horarioFormatado);
+
+    // Soma o intervalo
+    minutoAtual += intervaloMinutos;
+    if (minutoAtual >= 60) {
+      horaAtual += Math.floor(minutoAtual / 60);
+      minutoAtual = minutoAtual % 60;
+    }
+  }
+
+  return horarios;
+}
 
 export default function CheckoutPage() {
   const { items, removeItem } = useCartStore()
   const router = useRouter()
+
+  // Aqui nós geramos a grade dinamicamente das 09h às 18h com intervalo de 60 min
+  const timeSlots = gerarHorarios("09:00", "18:00", 60)
 
   const [form, setForm] = useState({
     name: "",
@@ -199,13 +226,13 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Horário */}
+                {/* Horário (Renderizando a grade gerada dinamicamente) */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-sans font-medium tracking-widest uppercase text-muted-foreground flex items-center gap-1.5">
                     <Clock size={12} /> Horário preferido
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {TIME_SLOTS.map((slot) => (
+                    {timeSlots.map((slot) => (
                       <button
                         key={slot}
                         type="button"

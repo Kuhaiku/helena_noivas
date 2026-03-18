@@ -11,6 +11,7 @@ import {
   ExternalLink,
   PlusSquare,
   Layers,
+  Clock, // <-- 1. Adicionamos o ícone do relógio aqui
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -21,6 +22,7 @@ const navItems = [
   { id: "estoque", label: "Estoque", icon: Package },
   { id: "cadastro", label: "Cadastro de Produto", icon: PlusSquare },
   { id: "colecoes", label: "Coleções Sazonais", icon: Layers },
+  { id: "horarios", label: "Horários da Loja", icon: Clock }, // <-- 2. Adicionamos o novo botão aqui
   { id: "configuracoes", label: "Configurações", icon: Settings },
 ] as const
 
@@ -45,7 +47,7 @@ export function AdminSidebar() {
         {navItems.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setSection(id)}
+            onClick={() => setSection(id as any)} // <-- type assertion aqui caso o TypeScript reclame
             className={cn(
               "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left",
               section === id

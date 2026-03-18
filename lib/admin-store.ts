@@ -212,7 +212,7 @@ const SEED_COLLECTIONS: SeasonalCollection[] = [
   },
 ]
 
-export type AdminSection = "dashboard" | "pedidos" | "estoque" | "cadastro" | "colecoes" | "configuracoes"
+export type AdminSection = "dashboard" | "pedidos" | "estoque" | "cadastro" | "colecoes" | "configuracoes" | "horarios"
 
 interface AdminStore {
   section: AdminSection

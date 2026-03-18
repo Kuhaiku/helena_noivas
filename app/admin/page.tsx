@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { ConfigHorarios } from "@/components/admin/config-horarios"
 import Image from "next/image"
 import {
   CalendarCheck,
@@ -22,7 +23,6 @@ import {
   TrendingUp,
   DollarSign,
   Plus,
-  Search,
   Filter,
   Pencil,
   FileSignature,
@@ -34,7 +34,6 @@ import {
   BarChart3,
   CheckCircle2,
   Upload,
-  GripVertical,
   Layers,
   Eye,
   EyeOff,
@@ -42,7 +41,7 @@ import {
   RadioTower,
   X,
 } from "lucide-react"
-import type { OrderStatus, Product, SeasonalCollection } from "@/lib/admin-store"
+import type { Product, SeasonalCollection } from "@/lib/admin-store"
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 function SectionDashboard() {
@@ -56,7 +55,6 @@ function SectionDashboard() {
     .sort((a, b) => a.provaTime.localeCompare(b.provaTime))
 
   // --- Alertas de Conflito ---
-  // Vestidos alugados que têm prova agendada nos próximos 7 dias
   const nextWeek = new Date()
   nextWeek.setDate(nextWeek.getDate() + 7)
   const nextWeekStr = nextWeek.toISOString().split("T")[0]
@@ -342,7 +340,6 @@ function SectionPedidos() {
         </Button>
       </div>
 
-      {/* Filters */}
       <div className="flex gap-3 flex-wrap items-center bg-white border border-border rounded-xl p-4">
         <Filter size={15} className="text-muted-foreground shrink-0" />
         <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
@@ -370,7 +367,6 @@ function SectionPedidos() {
         )}
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-xl border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -600,7 +596,6 @@ function SectionCadastro() {
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }))
 
-  // Simulate image upload — add placeholder image path
   const handleAddImage = () => {
     const placeholders = [
       "/images/vestido-aurora.jpg",
@@ -660,9 +655,7 @@ function SectionCadastro() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* ── Formulário (2/3) ── */}
         <div className="lg:col-span-2 flex flex-col gap-5">
-
           {/* 1. Informações Básicas */}
           <div className="bg-white rounded-xl border border-border p-6 flex flex-col gap-5">
             <h2 className="text-sm font-semibold text-foreground border-b border-border pb-3">
@@ -846,7 +839,6 @@ function SectionCadastro() {
             </div>
           </div>
 
-          {/* Save button */}
           <Button
             onClick={handleSave}
             disabled={!form.name || !form.sku}
@@ -856,9 +848,8 @@ function SectionCadastro() {
           </Button>
         </div>
 
-        {/* ── Preview + Mídia (1/3) ── */}
+        {/* ── Preview + Mídia ── */}
         <div className="flex flex-col gap-4 lg:sticky lg:top-6">
-          {/* Preview da capa */}
           <div className="bg-white rounded-xl border border-border overflow-hidden">
             <div className="px-4 py-3 border-b border-border">
               <p className="text-xs font-semibold text-foreground">Preview da Capa</p>
@@ -889,14 +880,12 @@ function SectionCadastro() {
             )}
           </div>
 
-          {/* 4. Upload de Imagens */}
           <div className="bg-white rounded-xl border border-border p-4 flex flex-col gap-4">
             <div>
               <p className="text-xs font-semibold text-foreground mb-0.5">4. Mídia e Visual</p>
               <p className="text-[11px] text-muted-foreground">Arraste para reordenar. A primeira é a capa.</p>
             </div>
 
-            {/* Grid de thumbnails */}
             {form.images.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
                 {form.images.map((src, i) => (
@@ -908,20 +897,12 @@ function SectionCadastro() {
                       <Image src={src} alt={`Foto ${i + 1}`} fill className="object-cover object-top" sizes="80px" />
                     </button>
                     <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-1 opacity-0 group-hover:opacity-100 transition-opacity bg-foreground/60 rounded-b-lg py-0.5">
-                      <button onClick={() => handleMoveImage(i, i - 1)} disabled={i === 0} className="text-white text-[10px] px-1 disabled:opacity-30">
-                        &#x2190;
-                      </button>
-                      <button onClick={() => handleRemoveImage(i)} className="text-white text-[10px] px-1">
-                        &#x2715;
-                      </button>
-                      <button onClick={() => handleMoveImage(i, i + 1)} disabled={i === form.images.length - 1} className="text-white text-[10px] px-1 disabled:opacity-30">
-                        &#x2192;
-                      </button>
+                      <button onClick={() => handleMoveImage(i, i - 1)} disabled={i === 0} className="text-white text-[10px] px-1 disabled:opacity-30">&#x2190;</button>
+                      <button onClick={() => handleRemoveImage(i)} className="text-white text-[10px] px-1">&#x2715;</button>
+                      <button onClick={() => handleMoveImage(i, i + 1)} disabled={i === form.images.length - 1} className="text-white text-[10px] px-1 disabled:opacity-30">&#x2192;</button>
                     </div>
                     {i === coverIdx && (
-                      <span className="absolute top-1 left-1 bg-primary text-primary-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                        Capa
-                      </span>
+                      <span className="absolute top-1 left-1 bg-primary text-primary-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-full">Capa</span>
                     )}
                   </div>
                 ))}
@@ -991,8 +972,6 @@ function SectionColecoes() {
     }))
   }
 
-  const activeCol = collections.find((c) => c.active)
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1007,7 +986,6 @@ function SectionColecoes() {
         </Button>
       </div>
 
-      {/* Formulário de criação/edição */}
       {isCreating && (
         <div className="bg-white rounded-xl border border-primary/30 p-6 flex flex-col gap-5 shadow-sm">
           <div className="flex items-center justify-between">
@@ -1030,7 +1008,6 @@ function SectionColecoes() {
             </div>
           </div>
 
-          {/* Seletor de peças */}
           <div>
             <Label className="text-xs mb-2">Peças desta Coleção</Label>
             <p className="text-[11px] text-muted-foreground mb-3">
@@ -1077,7 +1054,6 @@ function SectionColecoes() {
         </div>
       )}
 
-      {/* Lista de coleções */}
       <div className="flex flex-col gap-4">
         {collections.map((col) => {
           const colProducts = products.filter((p) => col.productIds.includes(p.id))
@@ -1088,7 +1064,6 @@ function SectionColecoes() {
                 col.active ? "border-primary/40 shadow-sm" : "border-border"
               }`}
             >
-              {/* Header da coleção */}
               <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap border-b border-border">
                 <div className="flex items-center gap-3">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${col.active ? "bg-primary" : "bg-border"}`} />
@@ -1131,7 +1106,6 @@ function SectionColecoes() {
                 </div>
               </div>
 
-              {/* Grid de peças */}
               {colProducts.length === 0 ? (
                 <div className="px-5 py-6 text-center text-sm text-muted-foreground">
                   Nenhuma peça associada a esta coleção.
@@ -1188,73 +1162,12 @@ function SectionColecoes() {
             </div>
           )
         })}
-        {collections.length === 0 && (
-          <div className="bg-white rounded-xl border border-border px-5 py-16 text-center">
-            <Layers size={28} className="mx-auto mb-3 text-muted-foreground opacity-30" />
-            <p className="text-sm text-muted-foreground">Nenhuma coleção cadastrada.</p>
-            <button onClick={openCreate} className="text-xs text-primary underline underline-offset-4 mt-2">
-              Criar primeira coleção
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Visibilidade rápida de todas as peças */}
-      <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-          <Eye size={15} className="text-muted-foreground" />
-          <h2 className="text-sm font-semibold text-foreground">Visibilidade de Todas as Peças</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40">
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Peça</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Coleção</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Categoria</th>
-                <th className="text-center px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Visibilidade</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((p) => (
-                <tr key={p.id} className={`border-b border-border last:border-0 transition-colors ${p.hidden ? "bg-muted/20" : "hover:bg-muted/30"}`}>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="relative w-8 h-10 rounded overflow-hidden bg-border shrink-0">
-                        <Image src={p.images[0] ?? "/images/vestido-aurora.jpg"} alt={p.name} fill className="object-cover" sizes="32px" />
-                      </div>
-                      <div>
-                        <p className={`font-medium ${p.hidden ? "text-muted-foreground line-through" : "text-foreground"}`}>{p.name}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{p.sku}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-xs text-muted-foreground">{p.collection || "—"}</td>
-                  <td className="px-5 py-3 text-xs text-muted-foreground capitalize">{p.category}</td>
-                  <td className="px-5 py-3 text-center">
-                    <button
-                      onClick={() => toggleProductHidden(p.id)}
-                      className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
-                        p.hidden
-                          ? "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                          : "bg-green-50 text-green-700 hover:bg-red-50 hover:text-red-600"
-                      }`}
-                    >
-                      {p.hidden ? <EyeOff size={11} /> : <Eye size={11} />}
-                      {p.hidden ? "Oculto" : "Visível"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Page Principal ───────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { section } = useAdminStore()
 
@@ -1268,10 +1181,11 @@ export default function AdminPage() {
         {section === "estoque" && <SectionEstoque />}
         {section === "cadastro" && <SectionCadastro />}
         {section === "colecoes" && <SectionColecoes />}
+        {section === "horarios" && <ConfigHorarios />}      
         {section === "configuracoes" && <SectionConfiguracoes />}
       </main>
 
-      {/* Modals */}
+      {/* Modals Globais */}
       <ModalPedido />
       <ModalFechamento />
       <ModalNovoPedido />
