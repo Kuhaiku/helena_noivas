@@ -1,89 +1,55 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 
-// ─── ESTRUTURA FUTURA: CLOUDINARY ─────────────────────────────────────────────
-// No futuro, quando instalares a biblioteca do Cloudinary, vais substituir o interior 
-// desta função para receber a imagem em Base64 e devolver o URL seguro gerado por eles.
-async function uploadImagemParaCloudinary(imagemBase64OuUrl: string) {
-  // TODO: FASE 3 - Implementar SDK do Cloudinary aqui.
-  // Exemplo de como ficará o teu código no futuro:
-  //
-  // const uploadResponse = await cloudinary.uploader.upload(imagemBase64OuUrl, { 
-  //   folder: 'helena_noivas_catalogo' 
-  // });
-  // return uploadResponse.secure_url;
-
-  // Por enquanto, como ainda estamos na Fase 2, apenas retornamos a string 
-  // original (que no teu teste agora será aquele caminho '/images/vestido-aurora.jpg')
-  return imagemBase64OuUrl;
-}
-
-// ─── LER OS PRODUTOS (GET) ────────────────────────────────────────────────────
-export async function GET() {
-  try {
-    const sql = `SELECT * FROM produtos ORDER BY criado_em DESC`;
-    const resultados: any = await query(sql);
-    
-    // Formata para o padrão exato que o teu Zustand (AdminStore) usa
-    const produtosFormatados = resultados.map((p: any) => ({
-      id: p.id.toString(),
-      name: p.nome_modelo,
-      description: p.descricao || "",
-      category: p.categoria || "noiva",
-      collection: "", 
-      sku: "SKU-TEMP", // Na próxima fase vamos fazer o JOIN com a tabela de SKUs
-      size: "Único", 
-      color: "Branco",
-      condition: "nova",
-      stock: "livre",
-      rentalPrice: Number(p.preco_aluguel),
-      salePrice: p.preco_venda ? Number(p.preco_venda) : undefined,
-      showPrice: Boolean(p.exibir_valor),
-      featured: Boolean(p.destaque),
-      hidden: false,
-      images: p.foto_principal ? [p.foto_principal] : ["/images/vestido-aurora.jpg"],
-      maintenanceNotes: "",
-      createdAt: new Date(p.criado_em).toISOString().split('T')[0]
-    }));
-
-    return NextResponse.json(produtosFormatados);
-  } catch (error) {
-    console.error("Erro ao buscar produtos:", error);
-    return NextResponse.json({ error: "Falha ao buscar no banco" }, { status: 500 });
-  }
-}
-
-// ─── SALVAR UM NOVO PRODUTO (POST) ────────────────────────────────────────────
+// ─── SALVAR UM NOVO PEDIDO (POST) - Chamado pelo Checkout da Noiva ─────────
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    
-    // 1. Processa a imagem (Passando pela nossa função estruturada para o Cloudinary)
-    let fotoCapaUrl = null;
-    if (data.images && data.images.length > 0) {
-      // Pega a primeira foto do array que o painel enviou
-      fotoCapaUrl = await uploadImagemParaCloudinary(data.images[0]);
-    }
+    const { name, whatsapp, date, time } = data;
 
-    // 2. Insere os dados de texto e o URL da imagem na tabela de produtos
+    // Insere o agendamento na tabela de pedidos do MySQL com o status 'novo'
     const sql = `
-      INSERT INTO produtos (nome_modelo, descricao, categoria, foto_principal, preco_aluguel, exibir_valor, destaque) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pedidos (cliente_nome, cliente_telefone, data_prova, horario_prova, status) 
+      VALUES (?, ?, ?, ?, 'novo')
     `;
     
-    const result: any = await query(sql, [
-      data.name, 
-      data.description, 
-      data.category, 
-      fotoCapaUrl, 
-      data.rentalPrice, 
-      data.showPrice ? 1 : 0, 
-      data.featured ? 1 : 0
-    ]);
+    const result: any = await query(sql, [name, whatsapp, date, time]);
 
-    return NextResponse.json({ success: true, produtoId: result.insertId });
+    return NextResponse.json({ success: true, pedidoId: result.insertId });
   } catch (error) {
-    console.error("Erro ao salvar produto:", error);
+    console.error("Erro ao salvar pedido:", error);
     return NextResponse.json({ success: false, error: "Falha ao gravar no banco" }, { status: 500 });
+  }
+}
+
+// ─── LER OS PEDIDOS (GET) - Chamado pelo Painel Admin para montar a Agenda ──
+export async function GET() {
+  try {
+    // Busca os pedidos ordenados pelos mais recentes
+    const sql = `SELECT * FROM pedidos ORDER BY criado_em DESC`;
+    const resultados: any = await query(sql);
+    
+    // Traduz do formato do MySQL para o formato que o Zustand (AdminStore) usa
+    const pedidosFormatados = resultados.map((p: any) => ({
+      id: p.id.toString(),
+      clientName: p.cliente_nome,
+      clientPhone: p.cliente_telefone,
+      clientEmail: "Sem email",
+      // Converte a data do banco para o formato "YYYY-MM-DD" que o teu calendário usa
+      provaDate: new Date(p.data_prova).toISOString().split('T')[0],
+      // Pega apenas as horas e minutos (ex: "14:00")
+      provaTime: p.horario_prova ? p.horario_prova.substring(0, 5) : "00:00",
+      // Converte "Novo" para "novo" (para a cor da badge funcionar)
+      status: p.status.toLowerCase(), 
+      items: [], // Na próxima etapa vamos puxar os SKUs dos vestidos aqui dentro!
+      totalValue: Number(p.valor_total) || 0,
+      signalPaid: Number(p.valor_sinal_pago) || 0,
+      createdAt: p.criado_em ? new Date(p.criado_em).toISOString() : new Date().toISOString()
+    }));
+
+    return NextResponse.json(pedidosFormatados);
+  } catch (error) {
+    console.error("Erro ao buscar pedidos:", error);
+    return NextResponse.json({ error: "Falha ao buscar no banco" }, { status: 500 });
   }
 }

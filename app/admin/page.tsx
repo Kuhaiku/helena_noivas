@@ -49,12 +49,10 @@ function SectionDashboard() {
 
   const today = new Date().toISOString().split("T")[0]
 
-  // --- Agenda do Dia ---
   const todayOrders = orders
     .filter((o) => o.provaDate === today && o.status !== "cancelado")
     .sort((a, b) => a.provaTime.localeCompare(b.provaTime))
 
-  // --- Alertas de Conflito ---
   const nextWeek = new Date()
   nextWeek.setDate(nextWeek.getDate() + 7)
   const nextWeekStr = nextWeek.toISOString().split("T")[0]
@@ -66,7 +64,6 @@ function SectionDashboard() {
     return o.items.some((item) => rentedIds.has(item.id))
   })
 
-  // --- Métricas de Conversão ---
   const totalNoivas = orders.length
   const fechados = orders.filter((o) => o.status === "compareceu").length
   const taxaConversao = totalNoivas > 0 ? Math.round((fechados / totalNoivas) * 100) : 0
@@ -84,7 +81,6 @@ function SectionDashboard() {
         </p>
       </div>
 
-      {/* Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Provas Hoje" value={todayOrders.length} sub="agendamentos para hoje" icon={CalendarCheck} accent="blue" />
         <MetricCard title="Pendentes" value={pendentes} sub="aguardando confirmação" icon={ClipboardList} accent="amber" />
@@ -98,7 +94,6 @@ function SectionDashboard() {
         />
       </div>
 
-      {/* Alertas de Conflito */}
       {conflicts.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -144,7 +139,6 @@ function SectionDashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Agenda do Dia */}
         <div className="bg-white rounded-xl border border-border overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center gap-2">
             <Clock size={15} className="text-primary" />
@@ -191,14 +185,12 @@ function SectionDashboard() {
           )}
         </div>
 
-        {/* Métricas de Conversão */}
         <div className="bg-white rounded-xl border border-border overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center gap-2">
             <BarChart3 size={15} className="text-primary" />
             <h2 className="text-sm font-semibold text-foreground">Métricas de Conversão</h2>
           </div>
           <div className="p-5 flex flex-col gap-5">
-            {/* Funil visual */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
@@ -256,7 +248,6 @@ function SectionDashboard() {
         </div>
       </div>
 
-      {/* Próximos agendamentos */}
       <div className="bg-white rounded-xl border border-border overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
           <h2 className="text-sm font-semibold text-foreground">Próximos Agendamentos</h2>
@@ -435,11 +426,29 @@ function SectionPedidos() {
 
 // ─── Estoque ─────────────────────────────────────────────────────────────────
 function SectionEstoque() {
-  const { catalog, products, overrideStockStatus } = useAdminStore()
+  const { catalog, products, deleteProduct, setEditingProduct, setSection, overrideStockStatus } = useAdminStore()
 
-  // Como o catálogo rudimentar foi apagado, mostramos os produtos reais aqui 
-  // (Na próxima fase vamos criar a aba real de SKUs, por agora listamos os produtos)
   const itensParaMostrar = products.length > 0 ? products : catalog
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Tem certeza que deseja apagar esta peça do estoque? Esta ação não pode ser desfeita.")) return;
+
+    try {
+      const response = await fetch(`/api/produtos?id=${id}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        deleteProduct(id);
+      } else {
+        alert("Erro ao apagar no banco de dados.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Erro de conexão com a API.");
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -458,7 +467,7 @@ function SectionEstoque() {
                 <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tamanho</th>
                 <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Valor</th>
                 <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
-                <th className="text-right px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Override</th>
+                <th className="text-right px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -476,28 +485,40 @@ function SectionEstoque() {
                   <td className="px-5 py-3 text-muted-foreground">{item.size}</td>
                   <td className="px-5 py-3 font-medium text-foreground">R$ {(item.price || item.rentalPrice || 0).toLocaleString("pt-BR")}</td>
                   <td className="px-5 py-3"><StockStatusBadge status={item.stock || 'livre'} /></td>
-                  <td className="px-5 py-3 text-right">
-                    {item.stock !== "livre" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
-                        onClick={() => overrideStockStatus(item.id, "livre")}
-                        title="Forçar disponibilidade"
-                      >
-                        <Zap size={11} /> Forçar Livre
-                      </Button>
-                    )}
-                    {item.stock === "livre" && (
-                      <span className="text-xs text-muted-foreground">Disponível</span>
-                    )}
+                  <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
+                    
+                    {/* Botão Editar (Lápis) */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                      onClick={() => {
+                        setEditingProduct(item)
+                        setSection("cadastro") // Redireciona para o form de cadastro
+                      }}
+                      title="Editar Peça"
+                    >
+                      <Pencil size={14} />
+                    </Button>
+
+                    {/* Botão Apagar (Lixeira) */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                      onClick={() => handleDelete(item.id)}
+                      title="Apagar Peça"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+
                   </td>
                 </tr>
               ))}
               {itensParaMostrar.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-5 py-10 text-center text-sm text-muted-foreground">
-                    O teu estoque está completamente vazio. Vai a "Cadastro de Produto" para adicionar a tua primeira peça!
+                    O teu estoque está completamente vazio. Vá em "Cadastro de Produto" para adicionar a tua primeira peça!
                   </td>
                 </tr>
               )}
@@ -512,40 +533,59 @@ function SectionEstoque() {
 // ─── Configurações ────────────────────────────────────────────────────────────
 function SectionConfiguracoes() {
   const { storeConfig, setStoreConfig } = useAdminStore()
+  
+  // Estado local para os inputs
+  const [config, setConfig] = useState(storeConfig)
+  const [saved, setSaved] = useState(false)
+
+  const handleSave = () => {
+    setStoreConfig(config)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
 
   return (
-    <div className="flex flex-col gap-6 max-w-lg">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Configurações da Loja</h1>
-        <p className="text-sm text-muted-foreground">Parâmetros de operação e atendimento</p>
+    <div className="flex flex-col gap-6 max-w-xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Configurações da Loja</h1>
+          <p className="text-sm text-muted-foreground">Parâmetros de operação, atendimento e finanças</p>
+        </div>
+        {saved && (
+          <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+            <CheckCircle2 size={16} /> Salvo
+          </div>
+        )}
       </div>
 
-      <div className="bg-white rounded-xl border border-border p-6 flex flex-col gap-5">
+      <div className="bg-white rounded-xl border border-border p-6 flex flex-col gap-6">
+        
+        {/* Janela de Locação */}
         <div>
-          <p className="text-sm font-semibold text-foreground mb-1">Janela de Locação</p>
+          <p className="text-sm font-semibold text-foreground mb-1">Janela de Locação e Bloqueio</p>
           <p className="text-xs text-muted-foreground mb-4">
-            Quantos dias antes e depois do casamento o vestido pode ser retirado/devolvido.
+            Quantos dias antes e depois do evento o vestido fica indisponível para novos aluguéis.
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-xs mb-1.5">Dias antes do casamento</Label>
+              <Label className="text-xs mb-1.5">Dias antes do evento</Label>
               <Input
                 type="number"
                 min={1}
                 max={30}
-                value={storeConfig.windowBefore}
-                onChange={(e) => setStoreConfig({ windowBefore: Number(e.target.value) })}
+                value={config.windowBefore}
+                onChange={(e) => setConfig({ ...config, windowBefore: Number(e.target.value) })}
                 className="h-9"
               />
             </div>
             <div>
-              <Label className="text-xs mb-1.5">Dias depois do casamento</Label>
+              <Label className="text-xs mb-1.5">Dias depois do evento</Label>
               <Input
                 type="number"
                 min={1}
                 max={30}
-                value={storeConfig.windowAfter}
-                onChange={(e) => setStoreConfig({ windowAfter: Number(e.target.value) })}
+                value={config.windowAfter}
+                onChange={(e) => setConfig({ ...config, windowAfter: Number(e.target.value) })}
                 className="h-9"
               />
             </div>
@@ -554,19 +594,20 @@ function SectionConfiguracoes() {
 
         <Separator />
 
+        {/* Atendimento */}
         <div>
           <p className="text-sm font-semibold text-foreground mb-1">Capacidade de Atendimento</p>
           <p className="text-xs text-muted-foreground mb-4">
-            Número máximo de provadores disponíveis simultaneamente na loja.
+            Número máximo de provas que podem acontecer no mesmo horário (limite de agendamentos).
           </p>
-          <div className="max-w-xs">
-            <Label className="text-xs mb-1.5">Número de provadores</Label>
+          <div className="max-w-[200px]">
+            <Label className="text-xs mb-1.5">Número de provadores / salas</Label>
             <Input
               type="number"
               min={1}
               max={20}
-              value={storeConfig.provadores}
-              onChange={(e) => setStoreConfig({ provadores: Number(e.target.value) })}
+              value={config.provadores}
+              onChange={(e) => setConfig({ ...config, provadores: Number(e.target.value) })}
               className="h-9"
             />
           </div>
@@ -574,13 +615,38 @@ function SectionConfiguracoes() {
 
         <Separator />
 
-        <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground space-y-1">
-          <p>Janela atual: <span className="font-medium text-foreground">{storeConfig.windowBefore} dias antes</span> + <span className="font-medium text-foreground">{storeConfig.windowAfter} dias depois</span></p>
-          <p>Atendimentos simultâneos: <span className="font-medium text-foreground">{storeConfig.provadores} provador{storeConfig.provadores !== 1 ? "es" : ""}</span></p>
+        {/* Finanças */}
+        <div>
+          <p className="text-sm font-semibold text-foreground mb-1">Regras Financeiras</p>
+          <p className="text-xs text-muted-foreground mb-4">
+            Percentagem obrigatória cobrada como sinal no momento de fechar o contrato.
+          </p>
+          <div className="max-w-[200px]">
+            <Label className="text-xs mb-1.5">% do Sinal (Entrada)</Label>
+            <div className="relative">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={config.sinalPercentage}
+                onChange={(e) => setConfig({ ...config, sinalPercentage: Number(e.target.value) })}
+                className="h-9 pl-4 pr-8"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">%</span>
+            </div>
+          </div>
         </div>
 
-        <Button size="sm" className="w-fit gap-1.5">
-          <Save size={13} /> Salvar Configurações
+        <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground mt-2 border border-border">
+          <ul className="space-y-1.5 list-disc list-inside ml-2">
+            <li>O sistema bloqueará o estoque por <strong className="text-foreground">{config.windowBefore} dias antes</strong> e <strong className="text-foreground">{config.windowAfter} dias depois</strong> de um contrato.</li>
+            <li>A agenda permitirá <strong className="text-foreground">{config.provadores} clientes</strong> no mesmo horário.</li>
+            <li>Ao gerar um novo contrato, o sistema exigirá <strong className="text-foreground">{config.sinalPercentage}% de sinal</strong>.</li>
+          </ul>
+        </div>
+
+        <Button onClick={handleSave} className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold mt-2">
+          <Save size={16} /> Salvar Configurações
         </Button>
       </div>
     </div>
@@ -589,7 +655,7 @@ function SectionConfiguracoes() {
 
 // ─── Cadastro de Produto ──────────────────────────────────────────────────────
 function SectionCadastro() {
-  const { addProduct, products } = useAdminStore()
+  const { addProduct, products, editingProduct, setEditingProduct, updateProduct, setSection } = useAdminStore()
 
   const emptyForm = (): Omit<Product, "id" | "createdAt"> => ({
     name: "", description: "", category: "noiva", collection: "",
@@ -604,20 +670,58 @@ function SectionCadastro() {
   const [saved, setSaved] = useState(false)
   const [coverIdx, setCoverIdx] = useState(0)
 
+  // Popula o formulário se entrarmos no modo de edição
+  useEffect(() => {
+    if (editingProduct) {
+      setForm({
+        name: editingProduct.name || "",
+        description: editingProduct.description || "",
+        category: editingProduct.category || "noiva",
+        collection: editingProduct.collection || "",
+        sku: editingProduct.sku || "",
+        size: editingProduct.size || "",
+        color: editingProduct.color || "",
+        condition: editingProduct.condition || "nova",
+        stock: editingProduct.stock || "livre",
+        rentalPrice: editingProduct.rentalPrice || 0,
+        salePrice: editingProduct.salePrice,
+        showPrice: editingProduct.showPrice || false,
+        featured: editingProduct.featured || false,
+        hidden: editingProduct.hidden || false,
+        images: editingProduct.images || [],
+        maintenanceNotes: editingProduct.maintenanceNotes || "",
+        customWindowBefore: editingProduct.customWindowBefore,
+        customWindowAfter: editingProduct.customWindowAfter,
+      })
+      setCoverIdx(0)
+    } else {
+      setForm(emptyForm())
+    }
+  }, [editingProduct])
+
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }))
 
-  const handleAddImage = () => {
-    const placeholders = [
-      "/images/vestido-aurora.jpg",
-      "/images/vestido-isabela.jpg",
-      "/images/vestido-valentina.jpg",
-      "/images/vestido-sofia.jpg",
-      "/images/vestido-luna.jpg",
-      "/images/vestido-bianca.jpg",
-    ]
-    const next = placeholders[form.images.length % placeholders.length]
-    if (form.images.length < 6) set("images", [...form.images, next])
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+
+    const slotsAvailable = 6 - form.images.length
+    const filesToProcess = files.slice(0, slotsAvailable)
+
+    filesToProcess.forEach(file => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64String = reader.result as string
+        setForm(prev => {
+          const newImages = [...prev.images, base64String].slice(0, 6)
+          return { ...prev, images: newImages }
+        })
+      }
+      reader.readAsDataURL(file)
+    })
+    
+    e.target.value = "" 
   }
 
   const handleRemoveImage = (idx: number) => {
@@ -635,39 +739,63 @@ function SectionCadastro() {
     if (coverIdx === from) setCoverIdx(to)
   }
 
-  // --- FUNÇÃO ATUALIZADA PARA ENVIAR PARA A API MYSQL ---
   const handleSave = async () => {
     if (!form.name || !form.sku) return
 
     try {
-      // 1. Envia os dados para a API
-      const response = await fetch('/api/produtos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      })
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        // 2. Se salvou no MySQL com sucesso, atualiza a tela
-        const product: Product = {
-          ...form,
-          id: result.produtoId.toString(), // Usa o ID real gerado pelo banco
-          createdAt: new Date().toISOString().split("T")[0],
+      if (editingProduct) {
+        // --- MODO: ATUALIZAR (PUT) ---
+        const response = await fetch(`/api/produtos?id=${editingProduct.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form)
+        })
+        const result = await response.json()
+        
+        if (result.success) {
+          updateProduct(editingProduct.id, form)
+          setSaved(true)
+          setTimeout(() => {
+            setSaved(false)
+            setEditingProduct(null)
+            setSection("estoque") // Regressa automaticamente para o estoque
+          }, 1500)
+        } else {
+          alert("Erro ao atualizar o produto no banco de dados.")
         }
-        addProduct(product)
-        setSaved(true)
-        setForm(emptyForm())
-        setCoverIdx(0)
-        setTimeout(() => setSaved(false), 3000)
       } else {
-        alert("Erro ao salvar o produto no banco de dados.")
+        // --- MODO: CRIAR (POST) ---
+        const response = await fetch('/api/produtos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form)
+        })
+        const result = await response.json()
+        
+        if (result.success) {
+          const product: Product = {
+            ...form,
+            id: result.produtoId.toString(),
+            createdAt: new Date().toISOString().split("T")[0],
+          }
+          addProduct(product)
+          setSaved(true)
+          setForm(emptyForm())
+          setCoverIdx(0)
+          setTimeout(() => setSaved(false), 3000)
+        } else {
+          alert("Erro ao salvar o produto no banco de dados.")
+        }
       }
     } catch (error) {
       console.error(error)
       alert("Erro de conexão com a API.")
     }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingProduct(null)
+    setSection("estoque")
   }
 
   const previewImage = form.images[coverIdx] ?? null
@@ -676,12 +804,16 @@ function SectionCadastro() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Cadastro de Produto</h1>
-          <p className="text-sm text-muted-foreground">{products.length} produtos cadastrados</p>
+          <h1 className="text-xl font-semibold text-foreground">
+            {editingProduct ? "Editar Produto" : "Cadastro de Produto"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {editingProduct ? `A alterar o produto: ${editingProduct.sku}` : `${products.length} produtos cadastrados`}
+          </p>
         </div>
         {saved && (
           <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-xs font-medium px-4 py-2 rounded-full">
-            <CheckCircle2 size={14} /> Produto salvo com sucesso!
+            <CheckCircle2 size={14} /> {editingProduct ? "Atualizado!" : "Produto salvo!"}
           </div>
         )}
       </div>
@@ -871,13 +1003,25 @@ function SectionCadastro() {
             </div>
           </div>
 
-          <Button
-            onClick={handleSave}
-            disabled={!form.name || !form.sku}
-            className="w-full sm:w-auto py-3 px-8 text-sm font-semibold gap-2 bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-40"
-          >
-            <Save size={15} /> Salvar Produto
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleSave}
+              disabled={!form.name || !form.sku}
+              className="w-full sm:w-auto py-3 px-8 text-sm font-semibold gap-2 bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-40"
+            >
+              <Save size={15} /> {editingProduct ? "Atualizar Produto" : "Salvar Produto"}
+            </Button>
+            
+            {editingProduct && (
+              <Button
+                onClick={handleCancelEdit}
+                variant="outline"
+                className="w-full sm:w-auto py-3 px-8 text-sm font-semibold gap-2 text-muted-foreground hover:text-foreground"
+              >
+                Cancelar Edição
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* ── Preview + Mídia ── */}
@@ -941,14 +1085,30 @@ function SectionCadastro() {
               </div>
             )}
 
-            <button
-              onClick={handleAddImage}
-              disabled={form.images.length >= 6}
-              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-border rounded-lg py-3.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Upload size={14} />
-              {form.images.length === 0 ? "Adicionar Fotos" : `Adicionar mais (${form.images.length}/6)`}
-            </button>
+            {/* BOTÃO DE UPLOAD REAL */}
+            <div>
+              <input
+                type="file"
+                id="image-upload"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleFileUpload}
+                disabled={form.images.length >= 6}
+              />
+              <label
+                htmlFor="image-upload"
+                className={`w-full flex items-center justify-center gap-2 border-2 border-dashed border-border rounded-lg py-3.5 text-xs text-muted-foreground transition-all ${
+                  form.images.length >= 6 
+                    ? "opacity-40 cursor-not-allowed" 
+                    : "cursor-pointer hover:border-primary/50 hover:text-primary"
+                }`}
+              >
+                <Upload size={14} />
+                {form.images.length === 0 ? "Adicionar Fotos" : `Adicionar mais (${form.images.length}/6)`}
+              </label>
+            </div>
+
             <p className="text-[11px] text-muted-foreground text-center">Frente, Costas e Detalhe — máx. 6 fotos</p>
           </div>
         </div>
@@ -1201,19 +1361,17 @@ function SectionColecoes() {
 
 // ─── Page Principal ───────────────────────────────────────────────────────────
 export default function AdminPage() {
-  const { section, setOrders, setProducts } = useAdminStore() // <--- setProducts aqui
+  const { section, setOrders, setProducts } = useAdminStore()
 
   useEffect(() => {
     async function carregarDadosReais() {
       try {
-        // 1. Carrega os Pedidos do MySQL
         const resPedidos = await fetch('/api/pedidos')
         const dadosPedidos = await resPedidos.json()
         if (dadosPedidos && !dadosPedidos.error && Array.isArray(dadosPedidos)) {
           setOrders(dadosPedidos)
         }
 
-        // 2. Carrega os Produtos (Vestidos) do MySQL
         const resProdutos = await fetch('/api/produtos')
         const dadosProdutos = await resProdutos.json()
         if (dadosProdutos && !dadosProdutos.error && Array.isArray(dadosProdutos)) {
@@ -1225,7 +1383,7 @@ export default function AdminPage() {
     }
 
     carregarDadosReais()
-  }, [setOrders, setProducts]) // <--- Duas dependências
+  }, [setOrders, setProducts])
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc] font-sans">

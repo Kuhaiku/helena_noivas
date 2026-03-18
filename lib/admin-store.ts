@@ -69,7 +69,23 @@ export interface SeasonalCollection {
   createdAt: string
 }
 
-// ─── DADOS LIMPOS (Sem produtos ou pedidos falsos) ────────────────────────
+export interface BusinessHour {
+  dia: string
+  open: string
+  close: string
+  isOpen: boolean
+}
+
+const DEFAULT_BUSINESS_HOURS: BusinessHour[] = [
+  { dia: "Domingo", open: "09:00", close: "18:00", isOpen: false },
+  { dia: "Segunda", open: "09:00", close: "18:00", isOpen: true },
+  { dia: "Terça", open: "09:00", close: "18:00", isOpen: true },
+  { dia: "Quarta", open: "09:00", close: "18:00", isOpen: true },
+  { dia: "Quinta", open: "09:00", close: "18:00", isOpen: true },
+  { dia: "Sexta", open: "09:00", close: "18:00", isOpen: true },
+  { dia: "Sábado", open: "09:00", close: "14:00", isOpen: true },
+]
+
 const DRESS_CATALOG: DressItem[] = []
 const PRODUCT_CATALOG: Product[] = []
 const MOCK_ORDERS: Order[] = []
@@ -87,7 +103,10 @@ interface AdminStore {
   catalog: DressItem[]
   
   products: Product[]
-  setProducts: (products: Product[]) => void // <--- Adicionado
+  setProducts: (products: Product[]) => void
+  
+  editingProduct: Product | null
+  setEditingProduct: (p: Product | null) => void
   
   collections: SeasonalCollection[]
 
@@ -110,6 +129,7 @@ interface AdminStore {
   addOrder: (order: Order) => void
   addProduct: (product: Product) => void
   updateProduct: (id: string, data: Partial<Product>) => void
+  deleteProduct: (id: string) => void
   toggleProductHidden: (id: string) => void
 
   addCollection: (c: SeasonalCollection) => void
@@ -117,9 +137,16 @@ interface AdminStore {
   deleteCollection: (id: string) => void
   setActiveCollection: (id: string) => void
 
-  storeConfig: { windowBefore: number; windowAfter: number; provadores: number }
+  storeConfig: { 
+    windowBefore: number; 
+    windowAfter: number; 
+    provadores: number;
+    sinalPercentage: number; 
+    businessHours: BusinessHour[];
+  }
   setStoreConfig: (c: Partial<AdminStore["storeConfig"]>) => void
 
+  // --- ISTO É O QUE FALTAVA ---
   filterStatus: OrderStatus | "todos"
   setFilterStatus: (s: OrderStatus | "todos") => void
   filterDate: string
@@ -136,7 +163,10 @@ export const useAdminStore = create<AdminStore>((set) => ({
   catalog: DRESS_CATALOG,
   
   products: PRODUCT_CATALOG,
-  setProducts: (products) => set({ products }), // <--- Adicionado
+  setProducts: (products) => set({ products }),
+
+  editingProduct: null,
+  setEditingProduct: (editingProduct) => set({ editingProduct }),
 
   collections: SEED_COLLECTIONS,
 
@@ -182,6 +212,11 @@ export const useAdminStore = create<AdminStore>((set) => ({
       products: state.products.map((p) => (p.id === id ? { ...p, ...data } : p)),
     })),
 
+  deleteProduct: (id) =>
+    set((state) => ({
+      products: state.products.filter((p) => p.id !== id),
+    })),
+
   toggleProductHidden: (id) =>
     set((state) => ({
       products: state.products.map((p) => (p.id === id ? { ...p, hidden: !p.hidden } : p)),
@@ -204,7 +239,13 @@ export const useAdminStore = create<AdminStore>((set) => ({
       collections: state.collections.map((c) => ({ ...c, active: c.id === id })),
     })),
 
-  storeConfig: { windowBefore: 2, windowAfter: 3, provadores: 3 },
+  storeConfig: { 
+    windowBefore: 2, 
+    windowAfter: 3, 
+    provadores: 3,
+    sinalPercentage: 30,
+    businessHours: DEFAULT_BUSINESS_HOURS
+  },
   setStoreConfig: (c) =>
     set((state) => ({ storeConfig: { ...state.storeConfig, ...c } })),
 
