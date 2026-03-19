@@ -1,11 +1,46 @@
-"use client"
-
 import { create } from "zustand"
 
-export type OrderStatus = "pendente" | "confirmado" | "compareceu" | "cancelado" | "novo"
-export type StockStatus = "livre" | "alugado" | "manutencao"
-export type ProductCategory = string
-export type ProductCondition = "nova" | "usada" | "outros"
+export type AdminSection = "dashboard" | "pedidos" | "estoque" | "cadastro" | "colecoes" | "categorias" | "configuracoes" | "horarios" | "financeiro"
+
+export interface Category {
+  slug: string
+  name: string
+  description?: string
+}
+
+export interface Product {
+  id: string
+  name: string
+  description?: string
+  category: string
+  collection: string
+  sku: string
+  size: string
+  color: string
+  condition: "nova" | "usada" | "desgastada"
+  stock: "livre" | "alugado" | "manutencao"
+  quantity: number
+  rentalPrice: number
+  salePrice?: number
+  showPrice: boolean
+  featured: boolean
+  hidden: boolean
+  images: string[]
+  maintenanceNotes?: string
+  customWindowBefore?: number
+  customWindowAfter?: number
+  createdAt: string
+}
+
+export interface Collection {
+  id: string
+  name: string
+  description?: string
+  active: boolean
+  productIds: string[]
+}
+
+export type OrderStatus = "novo" | "pendente" | "confirmado" | "compareceu" | "cancelado"
 
 export interface DressItem {
   id: string
@@ -14,33 +49,7 @@ export interface DressItem {
   size: string
   price: number
   image: string
-  stock: StockStatus
-  note?: string
-  discount?: number
-}
-
-export interface Product {
-  id: string
-  name: string
-  description: string
-  category: ProductCategory
-  collection: string
-  sku: string
-  size: string
-  color: string
-  condition: ProductCondition
-  stock: StockStatus
-  quantity: number // <--- NOVA PROPRIEDADE AQUI
-  rentalPrice: number
-  salePrice?: number
-  showPrice: boolean
-  featured: boolean
-  hidden: boolean
-  images: string[]
-  maintenanceNotes: string
-  customWindowBefore?: number
-  customWindowAfter?: number
-  createdAt: string
+  stock: string
 }
 
 export interface Order {
@@ -53,156 +62,131 @@ export interface Order {
   eventoDate?: string
   status: OrderStatus
   items: DressItem[]
-  signalPaid?: number
-  totalValue?: number
-  discountTotal?: number
-  quitDate?: string
-  cautionValue?: number
-  notes?: string
+  totalValue: number
+  signalPaid: number
   createdAt: string
 }
 
-export interface SeasonalCollection {
+export interface StoreConfig {
+  windowBefore: number
+  windowAfter: number
+  businessHours: {
+    dia: string
+    isOpen: boolean
+    open: string
+    close: string
+  }[]
+  provadores: number
+}
+
+// ── Módulo Financeiro ──
+export interface Transaction {
   id: string
-  name: string
+  type: "entrada" | "saida"
   description: string
-  productIds: string[]
-  active: boolean
-  createdAt: string
+  amount: number
+  date: string
+  category: string
+  orderId?: string
+  createdAt?: string
 }
-
-export interface BusinessHour {
-  dia: string
-  open: string
-  close: string
-  isOpen: boolean
-}
-
-export interface Category {
-  id: string
-  name: string
-  slug: string
-}
-
-const DEFAULT_BUSINESS_HOURS: BusinessHour[] = [
-  { dia: "Domingo", open: "09:00", close: "18:00", isOpen: false },
-  { dia: "Segunda", open: "09:00", close: "18:00", isOpen: true },
-  { dia: "Terça", open: "09:00", close: "18:00", isOpen: true },
-  { dia: "Quarta", open: "09:00", close: "18:00", isOpen: true },
-  { dia: "Quinta", open: "09:00", close: "18:00", isOpen: true },
-  { dia: "Sexta", open: "09:00", close: "18:00", isOpen: true },
-  { dia: "Sábado", open: "09:00", close: "14:00", isOpen: true },
-]
-
-export type AdminSection = "dashboard" | "pedidos" | "estoque" | "cadastro" | "colecoes" | "categorias" | "configuracoes" | "horarios"
 
 interface AdminStore {
   section: AdminSection
-  setSection: (s: AdminSection) => void
+  setSection: (section: AdminSection) => void
+
+  categories: Category[]
+  setCategories: (cats: Category[]) => void
+
+  products: Product[]
+  setProducts: (prods: Product[]) => void
+  addProduct: (prod: Product) => void
+  updateProduct: (id: string, prod: Partial<Product>) => void
+  deleteProduct: (id: string) => void
+
+  collections: Collection[]
+  setCollections: (cols: Collection[]) => void
 
   orders: Order[]
   setOrders: (orders: Order[]) => void
-  
-  catalog: DressItem[]
-  
-  products: Product[]
-  setProducts: (products: Product[]) => void
-  
+  updateOrderStatus: (id: string, status: OrderStatus) => void
+  updateOrderFinancial: (id: string, data: { totalValue?: number, signalPaid?: number }) => void
+  updateOrderItems: (id: string, items: DressItem[]) => void
+  deleteOrder: (id: string) => void
+
+  storeConfig: StoreConfig | null
+  setStoreConfig: (config: StoreConfig) => void
+
+  catalog: Product[]
+  setCatalog: (cat: Product[]) => void
+
   editingProduct: Product | null
-  setEditingProduct: (p: Product | null) => void
-  
-  collections: SeasonalCollection[]
-  setCollections: (collections: SeasonalCollection[]) => void
-
-  categories: Category[]
-  setCategories: (categories: Category[]) => void
-
-  selectedOrder: Order | null
-  setSelectedOrder: (o: Order | null) => void
+  setEditingProduct: (prod: Product | null) => void
 
   isOrderModalOpen: boolean
-  setOrderModalOpen: (v: boolean) => void
+  selectedOrder: Order | null
+  setOrderModalOpen: (isOpen: boolean) => void
+  setSelectedOrder: (order: Order | null) => void
 
-  isFinancialModalOpen: boolean
-  setFinancialModalOpen: (v: boolean) => void
-
-  isNewOrderModalOpen: boolean
-  setNewOrderModalOpen: (v: boolean) => void
-
-  updateOrderStatus: (id: string, status: OrderStatus) => void
-  updateOrderItems: (id: string, items: DressItem[]) => void
-  updateOrderFinancial: (id: string, data: Partial<Order>) => void
-  overrideStockStatus: (dressId: string, status: StockStatus) => void
-  addOrder: (order: Order) => void
-  addProduct: (product: Product) => void
-  updateProduct: (id: string, data: Partial<Product>) => void
-  deleteProduct: (id: string) => void
-  toggleProductHidden: (id: string) => void
-
-  addCollection: (c: SeasonalCollection) => void
-  updateCollection: (id: string, data: Partial<SeasonalCollection>) => void
-  deleteCollection: (id: string) => void
-  setActiveCollection: (id: string) => void
-
-  storeConfig: { 
-    windowBefore: number; 
-    windowAfter: number; 
-    provadores: number;
-    sinalPercentage: number; 
-    businessHours: BusinessHour[];
-  }
-  setStoreConfig: (c: Partial<AdminStore["storeConfig"]>) => void
-
-  filterStatus: OrderStatus | "todos"
-  setFilterStatus: (s: OrderStatus | "todos") => void
-  filterDate: string
-  setFilterDate: (d: string) => void
+  // ── Ações Financeiras ──
+  transactions: Transaction[]
+  setTransactions: (t: Transaction[]) => void
+  addTransaction: (t: Transaction) => void
+  deleteTransaction: (id: string) => void
 }
 
 export const useAdminStore = create<AdminStore>((set) => ({
   section: "dashboard",
   setSection: (section) => set({ section }),
-  orders: [],
-  setOrders: (orders) => set({ orders }),
-  catalog: [],
-  products: [],
-  setProducts: (products) => set({ products }),
-  editingProduct: null,
-  setEditingProduct: (editingProduct) => set({ editingProduct }),
-  collections: [],
-  setCollections: (collections) => set({ collections }),
+
   categories: [],
   setCategories: (categories) => set({ categories }),
-  selectedOrder: null,
-  setSelectedOrder: (selectedOrder) => set({ selectedOrder }),
-  isOrderModalOpen: false,
-  setOrderModalOpen: (isOrderModalOpen) => set({ isOrderModalOpen }),
-  isFinancialModalOpen: false,
-  setFinancialModalOpen: (isFinancialModalOpen) => set({ isFinancialModalOpen }),
-  isNewOrderModalOpen: false,
-  setNewOrderModalOpen: (isNewOrderModalOpen) => set({ isNewOrderModalOpen }),
-  updateOrderStatus: (id, status) => set((state) => ({ orders: state.orders.map((o) => (o.id === id ? { ...o, status } : o)) })),
-  updateOrderItems: (id, items) => set((state) => ({ orders: state.orders.map((o) => (o.id === id ? { ...o, items } : o)) })),
+
+  products: [],
+  setProducts: (products) => set({ products }),
+  addProduct: (prod) => set((state) => ({ products: [prod, ...state.products] })),
+  updateProduct: (id, prod) => set((state) => ({
+    products: state.products.map((p) => (p.id === id ? { ...p, ...prod } : p)),
+  })),
+  deleteProduct: (id) => set((state) => ({
+    products: state.products.filter((p) => p.id !== id),
+  })),
+
+  collections: [],
+  setCollections: (collections) => set({ collections }),
+
+  orders: [],
+  setOrders: (orders) => set({ orders }),
+  updateOrderStatus: (id, status) => set((state) => ({
+    orders: state.orders.map((o) => (o.id === id ? { ...o, status } : o)),
+  })),
   updateOrderFinancial: (id, data) => set((state) => ({
-      orders: state.orders.map((o) => (o.id === id ? { ...o, ...data } : o)),
-      selectedOrder: state.selectedOrder?.id === id ? { ...state.selectedOrder, ...data } : state.selectedOrder,
-    })),
-  overrideStockStatus: (dressId, status) => set((state) => ({ catalog: state.catalog.map((d) => (d.id === dressId ? { ...d, stock: status } : d)) })),
-  addOrder: (order) => set((state) => ({ orders: [order, ...state.orders] })),
-  addProduct: (product) => set((state) => ({ products: [product, ...state.products] })),
-  updateProduct: (id, data) => set((state) => ({ products: state.products.map((p) => (p.id === id ? { ...p, ...data } : p)) })),
-  deleteProduct: (id) => set((state) => ({ products: state.products.filter((p) => p.id !== id) })),
-  toggleProductHidden: (id) => set((state) => ({ products: state.products.map((p) => (p.id === id ? { ...p, hidden: !p.hidden } : p)) })),
-  addCollection: (c) => set((state) => ({ collections: [c, ...state.collections] })),
-  updateCollection: (id, data) => set((state) => ({ collections: state.collections.map((c) => (c.id === id ? { ...c, ...data } : c)) })),
-  deleteCollection: (id) => set((state) => ({ collections: state.collections.filter((c) => c.id !== id) })),
-  setActiveCollection: (id) => set((state) => ({ collections: state.collections.map((c) => ({ ...c, active: c.id === id })) })),
-  storeConfig: { 
-    windowBefore: 2, windowAfter: 3, provadores: 3, sinalPercentage: 30, businessHours: DEFAULT_BUSINESS_HOURS
-  },
-  setStoreConfig: (c) => set((state) => ({ storeConfig: { ...state.storeConfig, ...c } })),
-  filterStatus: "todos",
-  setFilterStatus: (filterStatus) => set({ filterStatus }),
-  filterDate: "",
-  setFilterDate: (filterDate) => set({ filterDate }),
+    orders: state.orders.map((o) => (o.id === id ? { ...o, ...data } : o)),
+  })),
+  updateOrderItems: (id, items) => set((state) => ({
+    orders: state.orders.map((o) => (o.id === id ? { ...o, items } : o)),
+  })),
+  deleteOrder: (id) => set((state) => ({
+    orders: state.orders.filter((o) => o.id !== id),
+  })),
+
+  storeConfig: null,
+  setStoreConfig: (storeConfig) => set({ storeConfig }),
+
+  catalog: [],
+  setCatalog: (catalog) => set({ catalog }),
+
+  editingProduct: null,
+  setEditingProduct: (editingProduct) => set({ editingProduct }),
+
+  isOrderModalOpen: false,
+  selectedOrder: null,
+  setOrderModalOpen: (isOpen) => set({ isOrderModalOpen: isOpen }),
+  setSelectedOrder: (order) => set({ selectedOrder: order }),
+
+  // ── Inicialização Financeira ──
+  transactions: [],
+  setTransactions: (transactions) => set({ transactions }),
+  addTransaction: (t) => set((state) => ({ transactions: [t, ...state.transactions] })),
+  deleteTransaction: (id) => set((state) => ({ transactions: state.transactions.filter(t => t.id !== id) })),
 }))
