@@ -8,7 +8,7 @@ import { useCartStore } from "@/lib/store"
 import type { Product } from "@/lib/admin-store"
 
 interface DressGalleryProps {
-  dress: Product // <- Mudámos para Product do Banco de Dados!
+  dress: Product 
   open: boolean
   onClose: () => void
 }
@@ -18,6 +18,8 @@ export function DressGallery({ dress, open, onClose }: DressGalleryProps) {
   const inCart = items.some((i) => i.id === dress.id)
   const [activeIdx, setActiveIdx] = useState(0)
 
+  // ─── CORREÇÃO AQUI ───
+  // Puxa as imagens reais do banco de dados (array de strings)
   const photos = dress.images && dress.images.length > 0
     ? dress.images
     : ["/images/vestido-aurora.jpg"]
@@ -38,7 +40,6 @@ export function DressGallery({ dress, open, onClose }: DressGalleryProps) {
     if (inCart) {
       removeItem(dress.id)
     } else {
-      // Quando a noiva clica em "Adicionar", mapeamos o Product do MySQL para o Carrinho
       addItem({
         id: dress.id,
         name: dress.name,
@@ -76,7 +77,7 @@ export function DressGallery({ dress, open, onClose }: DressGalleryProps) {
             sizes="(max-width: 768px) 100vw, 60vw"
           />
 
-          {/* Nav arrows */}
+          {/* Nav arrows - SÓ APARECEM SE HOUVER MAIS DE 1 FOTO */}
           {photos.length > 1 && (
             <>
               <button
@@ -96,10 +97,12 @@ export function DressGallery({ dress, open, onClose }: DressGalleryProps) {
             </>
           )}
 
-          {/* Photo counter */}
-          <span className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-background/70 backdrop-blur-sm rounded-full px-3 py-1 text-xs font-medium text-foreground">
-            {activeIdx + 1} / {photos.length}
-          </span>
+          {/* Photo counter - SÓ APARECE SE HOUVER MAIS DE 1 FOTO */}
+          {photos.length > 1 && (
+            <span className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-background/70 backdrop-blur-sm rounded-full px-3 py-1 text-xs font-medium text-foreground">
+              {activeIdx + 1} / {photos.length}
+            </span>
+          )}
 
           {/* Close */}
           <button
@@ -127,7 +130,6 @@ export function DressGallery({ dress, open, onClose }: DressGalleryProps) {
                 <span className="font-medium text-foreground">{dress.size}</span>
               </div>
               
-              {/* Oculta o preço se estiver marcado */}
               {dress.showPrice && (
                 <div className="flex items-center justify-between py-2 border-b border-border">
                   <span className="text-muted-foreground text-xs uppercase tracking-wide">Valor Locação</span>
@@ -146,7 +148,7 @@ export function DressGallery({ dress, open, onClose }: DressGalleryProps) {
               )}
             </div>
 
-            {/* Thumbnails */}
+            {/* Thumbnails - SÓ APARECEM SE HOUVER MAIS DE 1 FOTO */}
             {photos.length > 1 && (
               <div className="flex gap-2 flex-wrap">
                 {photos.map((src, i) => (

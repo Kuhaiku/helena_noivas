@@ -51,9 +51,10 @@ export function Header({ onCartClick }: HeaderProps) {
       {/* Menu mobile */}
       {menuOpen && (
         <nav className="bg-background border-t border-border px-6 py-4 flex flex-col gap-4 text-sm font-sans tracking-widest uppercase text-foreground/70">
-          <a href="/" className="hover:text-primary transition-colors" onClick={() => setMenuOpen(false)}>Coleção</a>
-          <a href="#sobre" className="hover:text-primary transition-colors" onClick={() => setMenuOpen(false)}>Sobre Nós</a>
-          <a href="#contato" className="hover:text-primary transition-colors" onClick={() => setMenuOpen(false)}>Contato</a>
+          <a href="/" className="hover:text-primary transition-colors" onClick={() => setMenuOpen(false)}>Inicio</a>
+          <a href="/colecoes" className="hover:text-primary transition-colors" onClick={() => setMenuOpen(false)}>Coleção</a>
+          <a href="/sobre" className="hover:text-primary transition-colors" onClick={() => setMenuOpen(false)}>Sobre Nós</a>
+          
         </nav>
       )}
     </header>

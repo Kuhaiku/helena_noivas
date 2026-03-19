@@ -11,6 +11,9 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  // ─── PROTEÇÃO CONTRA QUEDA DE CONEXÃO (ECONNRESET) ───
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
 });
 
 // Função auxiliar para facilitar as consultas no código

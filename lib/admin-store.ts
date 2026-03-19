@@ -4,7 +4,7 @@ import { create } from "zustand"
 
 export type OrderStatus = "pendente" | "confirmado" | "compareceu" | "cancelado" | "novo"
 export type StockStatus = "livre" | "alugado" | "manutencao"
-export type ProductCategory = "noiva" | "debutante" | "festa" | "acessorios"
+export type ProductCategory = string
 export type ProductCondition = "nova" | "usada" | "outros"
 
 export interface DressItem {
@@ -30,6 +30,7 @@ export interface Product {
   color: string
   condition: ProductCondition
   stock: StockStatus
+  quantity: number // <--- NOVA PROPRIEDADE AQUI
   rentalPrice: number
   salePrice?: number
   showPrice: boolean
@@ -76,6 +77,12 @@ export interface BusinessHour {
   isOpen: boolean
 }
 
+export interface Category {
+  id: string
+  name: string
+  slug: string
+}
+
 const DEFAULT_BUSINESS_HOURS: BusinessHour[] = [
   { dia: "Domingo", open: "09:00", close: "18:00", isOpen: false },
   { dia: "Segunda", open: "09:00", close: "18:00", isOpen: true },
@@ -86,12 +93,7 @@ const DEFAULT_BUSINESS_HOURS: BusinessHour[] = [
   { dia: "Sábado", open: "09:00", close: "14:00", isOpen: true },
 ]
 
-const DRESS_CATALOG: DressItem[] = []
-const PRODUCT_CATALOG: Product[] = []
-const MOCK_ORDERS: Order[] = []
-const SEED_COLLECTIONS: SeasonalCollection[] = []
-
-export type AdminSection = "dashboard" | "pedidos" | "estoque" | "cadastro" | "colecoes" | "configuracoes" | "horarios"
+export type AdminSection = "dashboard" | "pedidos" | "estoque" | "cadastro" | "colecoes" | "categorias" | "configuracoes" | "horarios"
 
 interface AdminStore {
   section: AdminSection
@@ -109,6 +111,10 @@ interface AdminStore {
   setEditingProduct: (p: Product | null) => void
   
   collections: SeasonalCollection[]
+  setCollections: (collections: SeasonalCollection[]) => void
+
+  categories: Category[]
+  setCategories: (categories: Category[]) => void
 
   selectedOrder: Order | null
   setSelectedOrder: (o: Order | null) => void
@@ -146,7 +152,6 @@ interface AdminStore {
   }
   setStoreConfig: (c: Partial<AdminStore["storeConfig"]>) => void
 
-  // --- ISTO É O QUE FALTAVA ---
   filterStatus: OrderStatus | "todos"
   setFilterStatus: (s: OrderStatus | "todos") => void
   filterDate: string
@@ -156,99 +161,45 @@ interface AdminStore {
 export const useAdminStore = create<AdminStore>((set) => ({
   section: "dashboard",
   setSection: (section) => set({ section }),
-
-  orders: MOCK_ORDERS,
+  orders: [],
   setOrders: (orders) => set({ orders }),
-
-  catalog: DRESS_CATALOG,
-  
-  products: PRODUCT_CATALOG,
+  catalog: [],
+  products: [],
   setProducts: (products) => set({ products }),
-
   editingProduct: null,
   setEditingProduct: (editingProduct) => set({ editingProduct }),
-
-  collections: SEED_COLLECTIONS,
-
+  collections: [],
+  setCollections: (collections) => set({ collections }),
+  categories: [],
+  setCategories: (categories) => set({ categories }),
   selectedOrder: null,
   setSelectedOrder: (selectedOrder) => set({ selectedOrder }),
-
   isOrderModalOpen: false,
   setOrderModalOpen: (isOrderModalOpen) => set({ isOrderModalOpen }),
-
   isFinancialModalOpen: false,
   setFinancialModalOpen: (isFinancialModalOpen) => set({ isFinancialModalOpen }),
-
   isNewOrderModalOpen: false,
   setNewOrderModalOpen: (isNewOrderModalOpen) => set({ isNewOrderModalOpen }),
-
-  updateOrderStatus: (id, status) =>
-    set((state) => ({
-      orders: state.orders.map((o) => (o.id === id ? { ...o, status } : o)),
-    })),
-
-  updateOrderItems: (id, items) =>
-    set((state) => ({
-      orders: state.orders.map((o) => (o.id === id ? { ...o, items } : o)),
-    })),
-
-  updateOrderFinancial: (id, data) =>
-    set((state) => ({
+  updateOrderStatus: (id, status) => set((state) => ({ orders: state.orders.map((o) => (o.id === id ? { ...o, status } : o)) })),
+  updateOrderItems: (id, items) => set((state) => ({ orders: state.orders.map((o) => (o.id === id ? { ...o, items } : o)) })),
+  updateOrderFinancial: (id, data) => set((state) => ({
       orders: state.orders.map((o) => (o.id === id ? { ...o, ...data } : o)),
       selectedOrder: state.selectedOrder?.id === id ? { ...state.selectedOrder, ...data } : state.selectedOrder,
     })),
-
-  overrideStockStatus: (dressId, status) =>
-    set((state) => ({
-      catalog: state.catalog.map((d) => (d.id === dressId ? { ...d, stock: status } : d)),
-    })),
-
+  overrideStockStatus: (dressId, status) => set((state) => ({ catalog: state.catalog.map((d) => (d.id === dressId ? { ...d, stock: status } : d)) })),
   addOrder: (order) => set((state) => ({ orders: [order, ...state.orders] })),
-
   addProduct: (product) => set((state) => ({ products: [product, ...state.products] })),
-
-  updateProduct: (id, data) =>
-    set((state) => ({
-      products: state.products.map((p) => (p.id === id ? { ...p, ...data } : p)),
-    })),
-
-  deleteProduct: (id) =>
-    set((state) => ({
-      products: state.products.filter((p) => p.id !== id),
-    })),
-
-  toggleProductHidden: (id) =>
-    set((state) => ({
-      products: state.products.map((p) => (p.id === id ? { ...p, hidden: !p.hidden } : p)),
-    })),
-
+  updateProduct: (id, data) => set((state) => ({ products: state.products.map((p) => (p.id === id ? { ...p, ...data } : p)) })),
+  deleteProduct: (id) => set((state) => ({ products: state.products.filter((p) => p.id !== id) })),
+  toggleProductHidden: (id) => set((state) => ({ products: state.products.map((p) => (p.id === id ? { ...p, hidden: !p.hidden } : p)) })),
   addCollection: (c) => set((state) => ({ collections: [c, ...state.collections] })),
-
-  updateCollection: (id, data) =>
-    set((state) => ({
-      collections: state.collections.map((c) => (c.id === id ? { ...c, ...data } : c)),
-    })),
-
-  deleteCollection: (id) =>
-    set((state) => ({
-      collections: state.collections.filter((c) => c.id !== id),
-    })),
-
-  setActiveCollection: (id) =>
-    set((state) => ({
-      collections: state.collections.map((c) => ({ ...c, active: c.id === id })),
-    })),
-
+  updateCollection: (id, data) => set((state) => ({ collections: state.collections.map((c) => (c.id === id ? { ...c, ...data } : c)) })),
+  deleteCollection: (id) => set((state) => ({ collections: state.collections.filter((c) => c.id !== id) })),
+  setActiveCollection: (id) => set((state) => ({ collections: state.collections.map((c) => ({ ...c, active: c.id === id })) })),
   storeConfig: { 
-    windowBefore: 2, 
-    windowAfter: 3, 
-    provadores: 3,
-    sinalPercentage: 30,
-    businessHours: DEFAULT_BUSINESS_HOURS
+    windowBefore: 2, windowAfter: 3, provadores: 3, sinalPercentage: 30, businessHours: DEFAULT_BUSINESS_HOURS
   },
-  setStoreConfig: (c) =>
-    set((state) => ({ storeConfig: { ...state.storeConfig, ...c } })),
-
+  setStoreConfig: (c) => set((state) => ({ storeConfig: { ...state.storeConfig, ...c } })),
   filterStatus: "todos",
   setFilterStatus: (filterStatus) => set({ filterStatus }),
   filterDate: "",
