@@ -13,6 +13,7 @@ export async function GET() {
       clientEmail: p.clientEmail,
       provaDate: p.provaDate,
       provaTime: p.provaTime,
+      eventoDate: p.eventoDate || "",
       status: p.status,
       items: p.itens ? (typeof p.itens === 'string' ? JSON.parse(p.itens) : p.itens) : [],
       totalValue: Number(p.totalValue) || 0,
@@ -29,11 +30,11 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
     const sql = `
-      INSERT INTO pedidos (clientName, clientPhone, clientEmail, provaDate, provaTime, status, totalValue, itens)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pedidos (clientName, clientPhone, clientEmail, provaDate, provaTime, eventoDate, status, totalValue, itens)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const result: any = await query(sql, [
-      data.clientName, data.clientPhone, data.clientEmail, data.provaDate, data.provaTime,
+      data.clientName, data.clientPhone, data.clientEmail, data.provaDate, data.provaTime, data.eventoDate || "",
       'novo', data.totalValue || 0, JSON.stringify(data.items || [])
     ]);
     
@@ -52,14 +53,14 @@ export async function PUT(request: Request) {
     const sql = `
       UPDATE pedidos SET 
         clientName = ?, clientPhone = ?, clientEmail = ?, 
-        provaDate = ?, provaTime = ?, status = ?, 
+        provaDate = ?, provaTime = ?, eventoDate = ?, status = ?, 
         totalValue = ?, signalPaid = ?, itens = ?
       WHERE id = ?
     `;
     
     await query(sql, [
       data.clientName, data.clientPhone, data.clientEmail,
-      data.provaDate, data.provaTime, data.status,
+      data.provaDate, data.provaTime, data.eventoDate || "", data.status,
       data.totalValue || 0, data.signalPaid || 0, JSON.stringify(data.items || []), id
     ]);
 

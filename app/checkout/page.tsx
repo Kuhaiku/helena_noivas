@@ -17,50 +17,42 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [orderId, setOrderId] = useState("")
-  const [form, setForm] = useState({ name: "", phone: "", email: "", date: "", time: "" })
+  // Adicionado eventoDate
+  const [form, setForm] = useState({ name: "", phone: "", email: "", date: "", time: "", eventoDate: "" })
   
   const [config, setConfig] = useState<any>(null)
   const [pedidosRegistados, setPedidosRegistados] = useState<any[]>([])
   const [availableSlots, setAvailableSlots] = useState<{time: string, available: boolean}[]>([])
-  
-  // ── NOVO: Estado para erro de conexão ──
   const [dbError, setDbError] = useState(false) 
 
   const totalCalculado = items.reduce((acc, item) => acc + item.price, 0)
 
-  // 1. Carrega as configurações da loja
   useEffect(() => {
     fetch('/api/configuracoes').then(res => res.json()).then(data => {
       if (data && data.businessHours) setConfig(data)
     }).catch(console.error)
   }, [])
 
-  // 2. Busca os pedidos com TRAVA DE SEGURANÇA
   useEffect(() => {
     if (form.date) {
       setDbError(false)
       fetch('/api/pedidos')
         .then(res => {
-          if (!res.ok) throw new Error("Falha na comunicação com o banco")
+          if (!res.ok) throw new Error("Falha na comunicação")
           return res.json()
         })
         .then(data => {
-          if (Array.isArray(data)) {
-            setPedidosRegistados(data)
-          } else {
-            throw new Error("Dados inválidos")
-          }
+          if (Array.isArray(data)) setPedidosRegistados(data)
+          else throw new Error("Dados inválidos")
         })
         .catch(err => {
           console.error(err)
-          setDbError(true) // Se der erro de internet ou banco, ativa o bloqueio!
+          setDbError(true)
         })
     }
   }, [form.date])
 
-  // 3. Calcula a disponibilidade baseada nos provadores e horários do dia
   useEffect(() => {
-    // Se houve erro de banco, não calcula horários (mantém travado)
     if (dbError || !form.date || !config?.businessHours) {
       setAvailableSlots([])
       return
@@ -79,7 +71,6 @@ export default function CheckoutPage() {
       return
     }
 
-    // Conta agendamentos daquela data
     const contagemPorHora: Record<string, number> = {}
     pedidosRegistados.forEach(p => {
       if (p.provaDate === form.date && p.status !== 'cancelado') {
@@ -95,18 +86,13 @@ export default function CheckoutPage() {
     while (currentHour < closeHour) {
       const slotTime = `${currentHour.toString().padStart(2, '0')}:00`
       const ocupados = contagemPorHora[slotTime] || 0
-      
-      slots.push({
-        time: slotTime,
-        available: ocupados < capacidadeMaxima // Só fica true se houver provador livre!
-      })
+      slots.push({ time: slotTime, available: ocupados < capacidadeMaxima })
       currentHour++
     }
     
     setAvailableSlots(slots)
     setForm(prev => ({ ...prev, time: "" })) 
   }, [form.date, config, pedidosRegistados, dbError])
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -125,6 +111,7 @@ export default function CheckoutPage() {
           clientEmail: form.email,
           provaDate: form.date,
           provaTime: form.time,
+          eventoDate: form.eventoDate, // Envia a data do casamento
           totalValue: totalCalculado,
           items: items
         })
@@ -145,7 +132,6 @@ export default function CheckoutPage() {
     }
   }
 
-  // ── TELA DE SUCESSO ──
   if (step === 2) {
     const mensagem = `Olá, Helena Noivas! Gostaria de confirmar o meu agendamento realizado no site. (Pedido #${orderId})`
     const whatsappUrl = `https://wa.me/5522999990000?text=${encodeURIComponent(mensagem)}`
@@ -174,7 +160,6 @@ export default function CheckoutPage() {
     )
   }
 
-  // ── TELA PRINCIPAL CHECKOUT ──
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header onCartClick={() => {}} />
@@ -220,13 +205,13 @@ export default function CheckoutPage() {
                 <Input required type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="h-11 bg-secondary/20" />
               </div>
               <div>
-                <Label className="text-xs mb-1.5 font-medium">E-mail</Label>
-                <Input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="h-11 bg-secondary/20" />
+                <Label className="text-xs mb-1.5 font-medium">Data do Casamento</Label>
+                <Input type="date" value={form.eventoDate} onChange={e => setForm({...form, eventoDate: e.target.value})} className="h-11 bg-secondary/20" />
               </div>
             </div>
 
-            <div>
-              <Label className="text-xs mb-1.5 font-medium">Data da Prova *</Label>
+            <div className="border-t border-border mt-2 pt-5">
+              <Label className="text-xs mb-1.5 font-medium block text-primary">Agendamento da Prova na Loja</Label>
               <Input required type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="h-11 bg-secondary/20 w-full sm:w-1/2" />
             </div>
 
@@ -234,11 +219,11 @@ export default function CheckoutPage() {
               <Label className="text-xs mb-3 block font-medium">Horário da Prova *</Label>
               
               {!form.date ? (
-                <p className="text-sm text-muted-foreground italic">Selecione uma data para ver os horários disponíveis.</p>
+                <p className="text-sm text-muted-foreground italic">Selecione uma data de prova para ver os horários.</p>
               ) : dbError ? (
                 <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
                   <AlertCircle size={18} />
-                  <p className="text-sm font-medium">Estamos a atualizar os horários. Por favor, tente selecionar a data novamente daqui a instantes.</p>
+                  <p className="text-sm font-medium">Atualizando horários. Tente selecionar a data novamente.</p>
                 </div>
               ) : availableSlots.length === 0 ? (
                 <p className="text-sm text-red-500 font-medium">A loja encontra-se fechada nesta data.</p>

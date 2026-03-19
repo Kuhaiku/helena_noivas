@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { useAdminStore, type DressItem, type OrderStatus } from "@/lib/admin-store"
-import { X, Trash2, Plus, Save, Calendar, Clock, User, Phone } from "lucide-react"
+import { X, Trash2, Plus, Save, Calendar, Clock, User, Phone, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +17,7 @@ export function ModalPedido() {
   const [localTotal, setLocalTotal] = useState(0)
   const [localDate, setLocalDate] = useState("")
   const [localTime, setLocalTime] = useState("")
+  const [localEventoDate, setLocalEventoDate] = useState("")
   const [produtoSelecionado, setProdutoSelecionado] = useState<string>("")
   const [loading, setLoading] = useState(false)
 
@@ -27,6 +28,7 @@ export function ModalPedido() {
       setLocalTotal(selectedOrder.totalValue || 0)
       setLocalDate(selectedOrder.provaDate)
       setLocalTime(selectedOrder.provaTime)
+      setLocalEventoDate(selectedOrder.eventoDate || "")
     }
   }, [selectedOrder, isOrderModalOpen])
 
@@ -70,7 +72,7 @@ export function ModalPedido() {
   }
 
   const handleSalvar = async () => {
-    if (!localDate || !localTime) return alert("A data e a hora não podem estar vazias.")
+    if (!localDate || !localTime) return alert("A data e a hora da prova não podem estar vazias.")
     
     setLoading(true)
     try {
@@ -80,7 +82,8 @@ export function ModalPedido() {
         totalValue: localTotal,
         items: localItems,
         provaDate: localDate,
-        provaTime: localTime
+        provaTime: localTime,
+        eventoDate: localEventoDate
       }
 
       const res = await fetch(`/api/pedidos?id=${selectedOrder.id}`, {
@@ -104,12 +107,12 @@ export function ModalPedido() {
 
   return (
     <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Pedido #{selectedOrder.id}</h2>
-            <p className="text-xs text-muted-foreground">Gerencie as peças, data e o status desta prova.</p>
+            <p className="text-xs text-muted-foreground">Gerencie as peças e o contrato da cliente.</p>
           </div>
           <button onClick={handleClose} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground">
             <X size={18} />
@@ -118,8 +121,7 @@ export function ModalPedido() {
 
         <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-8">
           
-          {/* Info do Cliente e Reagendamento */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-secondary/20 p-4 rounded-xl border border-border">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-secondary/20 p-4 rounded-xl border border-border">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><User size={16} /></div>
               <div>
@@ -135,6 +137,13 @@ export function ModalPedido() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 shrink-0"><Heart size={16} /></div>
+              <div className="flex-1">
+                <p className="text-xs text-pink-600 uppercase tracking-wider mb-1 font-bold">Data do Casamento</p>
+                <Input type="date" value={localEventoDate} onChange={(e) => setLocalEventoDate(e.target.value)} className="h-8 text-sm px-2 w-full border-pink-200 focus-visible:ring-pink-500" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><Calendar size={16} /></div>
               <div className="flex-1">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Data da Prova</p>
@@ -144,7 +153,7 @@ export function ModalPedido() {
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><Clock size={16} /></div>
               <div className="flex-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Horário</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Horário da Prova</p>
                 <Input type="time" value={localTime} onChange={(e) => setLocalTime(e.target.value)} className="h-8 text-sm px-2 w-full" />
               </div>
             </div>

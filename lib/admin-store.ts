@@ -50,6 +50,7 @@ export interface Order {
   clientEmail: string
   provaDate: string
   provaTime: string
+  eventoDate?: string
   status: OrderStatus
   items: DressItem[]
   signalPaid?: number
