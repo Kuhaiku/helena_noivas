@@ -3,6 +3,7 @@ import { create } from "zustand"
 export type AdminSection = "dashboard" | "pedidos" | "estoque" | "cadastro" | "colecoes" | "categorias" | "configuracoes" | "horarios" | "financeiro"
 
 export interface Category {
+  id: string
   slug: string
   name: string
   description?: string
@@ -40,6 +41,11 @@ export interface Collection {
   productIds: string[]
 }
 
+export interface SeasonalCollection extends Collection {
+  startDate?: string
+  endDate?: string
+}
+
 export type OrderStatus = "novo" | "pendente" | "confirmado" | "compareceu" | "cancelado"
 
 export interface DressItem {
@@ -50,6 +56,7 @@ export interface DressItem {
   price: number
   image: string
   stock: string
+  discount?: number
 }
 
 export interface Order {
@@ -77,6 +84,7 @@ export interface StoreConfig {
     close: string
   }[]
   provadores: number
+  sinalPercentage?: number
 }
 
 // ── Módulo Financeiro ──
@@ -106,6 +114,9 @@ interface AdminStore {
 
   collections: Collection[]
   setCollections: (cols: Collection[]) => void
+  addCollection: (col: Collection) => void
+  updateCollection: (id: string, col: Partial<Collection>) => void
+  deleteCollection: (id: string) => void
 
   orders: Order[]
   setOrders: (orders: Order[]) => void
@@ -127,6 +138,14 @@ interface AdminStore {
   selectedOrder: Order | null
   setOrderModalOpen: (isOpen: boolean) => void
   setSelectedOrder: (order: Order | null) => void
+
+  // ── Filtros Originais ──
+  filterStatus: string
+  setFilterStatus: (status: string) => void
+  filterDate: string
+  setFilterDate: (date: string) => void
+  setFinancialModalOpen: (isOpen: boolean) => void
+  setNewOrderModalOpen: (isOpen: boolean) => void
 
   // ── Ações Financeiras ──
   transactions: Transaction[]
@@ -154,6 +173,13 @@ export const useAdminStore = create<AdminStore>((set) => ({
 
   collections: [],
   setCollections: (collections) => set({ collections }),
+  addCollection: (col) => set((state) => ({ collections: [...state.collections, col] })),
+  updateCollection: (id, col) => set((state) => ({
+    collections: state.collections.map((c) => (c.id === id ? { ...c, ...col } : c)),
+  })),
+  deleteCollection: (id) => set((state) => ({
+    collections: state.collections.filter((c) => c.id !== id),
+  })),
 
   orders: [],
   setOrders: (orders) => set({ orders }),
@@ -183,6 +209,14 @@ export const useAdminStore = create<AdminStore>((set) => ({
   selectedOrder: null,
   setOrderModalOpen: (isOpen) => set({ isOrderModalOpen: isOpen }),
   setSelectedOrder: (order) => set({ selectedOrder: order }),
+
+  // ── Inicialização de Filtros Originais ──
+  filterStatus: "todos",
+  setFilterStatus: (status) => set({ filterStatus: status }),
+  filterDate: "",
+  setFilterDate: (date) => set({ filterDate: date }),
+  setFinancialModalOpen: () => {}, 
+  setNewOrderModalOpen: () => {},
 
   // ── Inicialização Financeira ──
   transactions: [],
