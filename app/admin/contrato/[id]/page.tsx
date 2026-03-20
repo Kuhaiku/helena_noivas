@@ -18,17 +18,23 @@ export default function ContratoPage() {
   useEffect(() => {
     async function carregarDados() {
       try {
-        const res = await fetch('/api/pedidos')
-        if (res.ok) {
-          const pedidos = await res.json()
+        const [resPed, resConf] = await Promise.all([
+          fetch('/api/pedidos'),
+          fetch('/api/configuracoes')
+        ])
+        
+        if (resPed.ok) {
+          const pedidos = await resPed.json()
+          const config = resConf.ok ? await resConf.json() : null
           const encontrado = pedidos.find((p: any) => p.id === id)
+          
           if (encontrado) {
             setOrder(encontrado)
             
             if (encontrado.contratoTexto && encontrado.contratoTexto.length > 10) {
               setTextoContrato(encontrado.contratoTexto)
             } else {
-              setTextoContrato(gerarTextoBase(encontrado))
+              setTextoContrato(gerarTextoBase(encontrado, config))
             }
           }
         }
@@ -41,11 +47,21 @@ export default function ContratoPage() {
     carregarDados()
   }, [id])
 
-  const gerarTextoBase = (o: any) => {
+  const gerarTextoBase = (o: any, configuracao: any) => {
     const itensTexto = o.items.map((i: any) => `• ${i.name} (SKU: ${i.sku}) - R$ ${Number(i.price).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`).join('\n')
     const totalTaxas = o.taxas?.reduce((acc: number, t: any) => acc + t.valor, 0) || 0
     const subtotal = o.items.reduce((acc: number, i: any) => acc + Number(i.price), 0) + totalTaxas
     const restante = Math.max(0, o.totalValue - o.signalPaid)
+
+    const clausulasDinamicas = configuracao?.contratoTemplate || `CLÁUSULA TERCEIRA - DA RETIRADA E DEVOLUÇÃO
+1. A retirada deverá ocorrer até 2 dias antes do evento.
+2. O traje deverá ser devolvido na mesma condição em que foi entregue, sendo proibida a lavagem ou alteração da peça pelo locatário.
+3. A não devolução do traje na data combinada implicará em multa diária por atraso no valor de R$ 50,00.
+4. O cliente se responsabiliza pela integridade das peças.
+5. Em caso de danos irreversíveis, manchas permanentes ou perda da peça, o locatário deverá ressarcir o valor de venda do traje.
+
+CLÁUSULA QUARTA - DO CANCELAMENTO E RESCISÃO
+A desistência da locação por parte do(a) LOCATÁRIO(A) implicará na perda integral do valor dado como sinal, para cobrir despesas operacionais e bloqueio de agenda da LOCADORA.`;
 
     return `CONTRATO DE LOCAÇÃO DE TRAJES A RIGOR
 
@@ -69,15 +85,7 @@ O valor total da locação, já contabilizando taxas e descontos, é de R$ ${o.t
 Neste ato, o(a) LOCATÁRIO(A) paga a título de SINAL a importância de R$ ${o.signalPaid.toLocaleString('pt-BR', {minimumFractionDigits: 2})}.
 Fica o saldo remanescente de R$ ${restante.toLocaleString('pt-BR', {minimumFractionDigits: 2})} a ser pago integralmente no momento da retirada do(s) traje(s).
 
-CLÁUSULA TERCEIRA - DA RETIRADA E DEVOLUÇÃO
-1. A retirada deverá ocorrer até 2 dias antes do evento.
-2. O traje deverá ser devolvido na mesma condição em que foi entregue, sendo proibida a lavagem ou alteração da peça pelo locatário.
-3. A não devolução do traje na data combinada implicará em multa diária por atraso no valor de R$ 50,00.
-4. O cliente se responsabiliza pela integridade das peças.
-5. Em caso de danos irreversíveis, manchas permanentes ou perda da peça, o locatário deverá ressarcir o valor de venda do traje.
-
-CLÁUSULA QUARTA - DO CANCELAMENTO E RESCISÃO
-A desistência da locação por parte do(a) LOCATÁRIO(A) implicará na perda integral do valor dado como sinal, para cobrir despesas operacionais e bloqueio de agenda da LOCADORA.
+${clausulasDinamicas}
 
 E por estarem justos e contratados, assinam o presente em 2 (duas) vias de igual teor.
 
@@ -135,7 +143,6 @@ ${o.clientName.toUpperCase()} (Locatário/a)
         <Button variant="ghost" onClick={() => router.push("/admin")} className="gap-2"><ArrowLeft size={16} /> Voltar ao Painel</Button>
         <div className="flex items-center gap-3">
           
-          {/* ── BOTÃO DE RESCINDIR CONTRATO ── */}
           <Button onClick={handleRescindir} variant="outline" className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
             <XCircle size={16} /> Rescindir Contrato
           </Button>
@@ -149,16 +156,13 @@ ${o.clientName.toUpperCase()} (Locatário/a)
         </div>
       </div>
 
-      {/* A FOLHA A4 */}
       <div className="max-w-[800px] min-h-[1122px] mx-auto mt-8 bg-white shadow-xl py-10 px-12 print:shadow-none print:m-0 print:py-8 print:px-8">
         
-        {/* Cabeçalho do Contrato */}
         <div className="flex flex-col items-center justify-center mb-6 pb-4 border-b-2 border-black">
           <span className="font-serif text-2xl tracking-widest text-black font-bold">HELENA<span className="font-light ml-1">NOIVAS</span></span>
           <p className="text-[10px] text-black mt-1 tracking-widest">CNPJ: 00.000.000/0000-00 | (22) 99999-0000</p>
         </div>
 
-        {/* Corpo do Texto */}
         {isEditing ? (
           <textarea 
             value={textoContrato} 

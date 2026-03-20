@@ -3,13 +3,13 @@ import { create } from "zustand";
 export type AdminSection =
   | "dashboard"
   | "pedidos"
+  | "financeiro"
   | "estoque"
   | "cadastro"
   | "colecoes"
   | "categorias"
   | "configuracoes"
   | "horarios"
-  | "financeiro"
   | "contratos";
 
 export interface Category {
@@ -53,12 +53,15 @@ export interface SeasonalCollection extends Collection {
   endDate?: string;
 }
 
+// ── NOVOS STATUS DE LOGÍSTICA ADICIONADOS ──
 export type OrderStatus =
   | "novo"
   | "pendente"
   | "confirmado"
   | "compareceu"
-  | "cancelado";
+  | "cancelado"
+  | "em_uso"
+  | "concluido";
 
 export interface DressItem {
   id: string;
@@ -70,7 +73,6 @@ export interface DressItem {
   stock: string;
   discount?: number;
 }
-
 export interface TaxaExtra {
   nome: string;
   valor: number;
@@ -83,19 +85,20 @@ export interface Order {
   clientEmail: string;
   cpf?: string;
   rg?: string;
-  endereco?: string; // Novos campos legais
+  endereco?: string;
   provaDate: string;
   provaTime: string;
   eventoDate?: string;
   status: OrderStatus;
   items: DressItem[];
   taxas?: TaxaExtra[];
-  contratoTexto?: string; // Novos campos do contrato
+  contratoTexto?: string;
   totalValue: number;
   signalPaid: number;
   createdAt: string;
 }
 
+// ── ADICIONADO contratoTemplate ──
 export interface StoreConfig {
   windowBefore: number;
   windowAfter: number;
@@ -107,6 +110,7 @@ export interface StoreConfig {
   }[];
   provadores: number;
   sinalPercentage?: number;
+  contratoTemplate?: string;
 }
 export interface Transaction {
   id: string;
@@ -156,9 +160,11 @@ interface AdminStore {
   setFilterDate: (date: string) => void;
   setFinancialModalOpen: (isOpen: boolean) => void;
   setNewOrderModalOpen: (isOpen: boolean) => void;
+  // ── ADICIONADO updateTransaction ──
   transactions: Transaction[];
   setTransactions: (t: Transaction[]) => void;
   addTransaction: (t: Transaction) => void;
+  updateTransaction: (id: string, t: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
 }
 
@@ -229,6 +235,12 @@ export const useAdminStore = create<AdminStore>((set) => ({
   setTransactions: (transactions) => set({ transactions }),
   addTransaction: (t) =>
     set((state) => ({ transactions: [t, ...state.transactions] })),
+  updateTransaction: (id, t) =>
+    set((state) => ({
+      transactions: state.transactions.map((tr) =>
+        tr.id === id ? { ...tr, ...t } : tr,
+      ),
+    })),
   deleteTransaction: (id) =>
     set((state) => ({
       transactions: state.transactions.filter((t) => t.id !== id),
