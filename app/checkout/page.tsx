@@ -17,15 +17,13 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [orderId, setOrderId] = useState("")
-  // Adicionado eventoDate
-  const [form, setForm] = useState({ name: "", phone: "", email: "", date: "", time: "", eventoDate: "" })
+  // Removida a Data do Evento
+  const [form, setForm] = useState({ name: "", phone: "", email: "", date: "", time: "" })
   
   const [config, setConfig] = useState<any>(null)
   const [pedidosRegistados, setPedidosRegistados] = useState<any[]>([])
   const [availableSlots, setAvailableSlots] = useState<{time: string, available: boolean}[]>([])
   const [dbError, setDbError] = useState(false) 
-
-  const totalCalculado = items.reduce((acc, item) => acc + item.price, 0)
 
   useEffect(() => {
     fetch('/api/configuracoes').then(res => res.json()).then(data => {
@@ -96,7 +94,7 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (items.length === 0) return alert("Sua sacola está vazia!")
+    if (items.length === 0) return alert("A sua sacola está vazia!")
     if (!form.time) return alert("Por favor, selecione um horário para a prova.")
     
     setLoading(true)
@@ -111,8 +109,8 @@ export default function CheckoutPage() {
           clientEmail: form.email,
           provaDate: form.date,
           provaTime: form.time,
-          eventoDate: form.eventoDate, // Envia a data do casamento
-          totalValue: totalCalculado,
+          eventoDate: "", // Vazio, pois só será preenchido no fechamento
+          totalValue: 0,  // O valor só será calculado no contrato real
           items: items
         })
       })
@@ -123,7 +121,7 @@ export default function CheckoutPage() {
         setStep(2)          
         clearCart()         
       } else {
-        alert("Erro ao salvar pedido.")
+        alert("Erro ao salvar o agendamento.")
       }
     } catch (error) {
       alert("Ocorreu um erro ao finalizar o agendamento.")
@@ -133,7 +131,7 @@ export default function CheckoutPage() {
   }
 
   if (step === 2) {
-    const mensagem = `Olá, Helena Noivas! Gostaria de confirmar o meu agendamento realizado no site. (Pedido #${orderId})`
+    const mensagem = `Olá, Helena Noivas! Gostaria de confirmar o meu agendamento de prova realizado no site. (Pedido #${orderId})`
     const whatsappUrl = `https://wa.me/5522999990000?text=${encodeURIComponent(mensagem)}`
 
     return (
@@ -145,14 +143,14 @@ export default function CheckoutPage() {
             <div>
               <h2 className="font-serif text-3xl text-foreground mb-3">Tudo Certo!</h2>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                O seu pedido <strong>#{orderId}</strong> foi registado com sucesso e já se encontra no nosso sistema.
+                O seu agendamento <strong>#{orderId}</strong> foi registado com sucesso.
               </p>
             </div>
             <div className="w-full flex flex-col gap-3 mt-4">
               <Button asChild className="w-full bg-[#25D366] hover:bg-[#1DA851] text-white font-semibold gap-2 py-6 text-base rounded-xl shadow-md">
                 <a href={whatsappUrl} target="_blank" rel="noopener noreferrer"><MessageCircle size={22} /> Confirme pelo WhatsApp</a>
               </Button>
-              <Button variant="outline" onClick={() => router.push("/")} className="w-full py-6 text-base rounded-xl">Voltar à coleção</Button>
+              <Button variant="outline" onClick={() => router.push("/")} className="w-full py-6 text-base rounded-xl">Voltar ao catálogo</Button>
             </div>
           </div>
         </main>
@@ -168,7 +166,7 @@ export default function CheckoutPage() {
         <div className="flex flex-col gap-6">
           <div>
             <button onClick={() => router.push("/")} className="text-sm text-muted-foreground flex items-center gap-2 hover:text-foreground mb-4"><ArrowLeft size={16} /> Continuar a ver vestidos</button>
-            <h1 className="font-serif text-3xl text-foreground">Sua Sacola</h1>
+            <h1 className="font-serif text-3xl text-foreground">Peças para Prova</h1>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -183,7 +181,7 @@ export default function CheckoutPage() {
                   <div className="flex-1 flex flex-col gap-1">
                     <h3 className="font-semibold text-foreground leading-tight">{item.name}</h3>
                     <p className="text-xs text-muted-foreground">Tamanho: {item.size} · SKU: {item.sku}</p>
-                    <p className="text-sm font-medium mt-1">R$ {item.price.toLocaleString('pt-BR')}</p>
+                    {/* Preço removido daqui */}
                   </div>
                   <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-red-500 p-2 transition-colors"><Trash2 size={18} /></button>
                 </div>
@@ -193,7 +191,7 @@ export default function CheckoutPage() {
         </div>
 
         <div className="bg-white p-6 md:p-8 rounded-3xl border border-border shadow-sm h-fit">
-          <h2 className="font-serif text-2xl text-foreground mb-6">Dados para Agendamento</h2>
+          <h2 className="font-serif text-2xl text-foreground mb-6">Agendar Provador</h2>
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div>
               <Label className="text-xs mb-1.5 font-medium">Nome Completo *</Label>
@@ -205,13 +203,13 @@ export default function CheckoutPage() {
                 <Input required type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="h-11 bg-secondary/20" />
               </div>
               <div>
-                <Label className="text-xs mb-1.5 font-medium">Data do Casamento</Label>
-                <Input type="date" value={form.eventoDate} onChange={e => setForm({...form, eventoDate: e.target.value})} className="h-11 bg-secondary/20" />
+                <Label className="text-xs mb-1.5 font-medium">E-mail</Label>
+                <Input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="h-11 bg-secondary/20" />
               </div>
             </div>
 
             <div className="border-t border-border mt-2 pt-5">
-              <Label className="text-xs mb-1.5 font-medium block text-primary">Agendamento da Prova na Loja</Label>
+              <Label className="text-xs mb-1.5 font-medium block text-primary">Data da Prova na Loja *</Label>
               <Input required type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="h-11 bg-secondary/20 w-full sm:w-1/2" />
             </div>
 
@@ -223,7 +221,7 @@ export default function CheckoutPage() {
               ) : dbError ? (
                 <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
                   <AlertCircle size={18} />
-                  <p className="text-sm font-medium">Atualizando horários. Tente selecionar a data novamente.</p>
+                  <p className="text-sm font-medium">A atualizar horários. Tente selecionar a data novamente.</p>
                 </div>
               ) : availableSlots.length === 0 ? (
                 <p className="text-sm text-red-500 font-medium">A loja encontra-se fechada nesta data.</p>
@@ -251,10 +249,7 @@ export default function CheckoutPage() {
             </div>
 
             <div className="border-t border-border mt-2 pt-6">
-              <div className="flex items-center justify-between text-lg text-foreground mb-6">
-                <span className="font-medium">Total Estimado</span>
-                <span className="font-bold">R$ {totalCalculado.toLocaleString('pt-BR')}</span>
-              </div>
+              {/* Total Estimado removido */}
               <Button type="submit" disabled={loading || items.length === 0 || !form.time || dbError} className="w-full h-14 text-base font-semibold rounded-xl">
                 {loading ? "A processar..." : "Confirmar Agendamento"}
               </Button>

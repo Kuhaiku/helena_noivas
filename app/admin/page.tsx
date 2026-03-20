@@ -6,7 +6,6 @@ import { AdminSidebar } from "@/components/admin/admin-sidebar"
 import { MetricCard } from "@/components/admin/metric-card"
 import { OrderStatusBadge, StockStatusBadge } from "@/components/admin/status-badge"
 import { ModalPedido } from "@/components/admin/modal-pedido"
-import { ModalFechamento } from "@/components/admin/modal-fechamento"
 import { ModalNovoPedido } from "@/components/admin/modal-novo-pedido"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -230,7 +229,7 @@ function SectionDashboard() {
 
 // ─── Pedidos ─────────────────────────────────────────────────────────────────
 function SectionPedidos() {
-  const { orders, filterStatus, setFilterStatus, filterDate, setFilterDate, setSelectedOrder, setOrderModalOpen, setFinancialModalOpen, setNewOrderModalOpen } = useAdminStore()
+  const { orders, filterStatus, setFilterStatus, filterDate, setFilterDate, setSelectedOrder, setOrderModalOpen, setNewOrderModalOpen } = useAdminStore()
 
   const filtered = orders.filter((o) => {
     const matchStatus = filterStatus === "todos" || o.status === filterStatus
@@ -292,7 +291,7 @@ function SectionPedidos() {
                     <td className="px-5 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => { setSelectedOrder(order); setOrderModalOpen(true) }}><Pencil size={12} /> Editar</Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => { setSelectedOrder(order); setFinancialModalOpen(true) }}><FileSignature size={12} /> Fechar</Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => { window.location.href = `/admin/fechamento/${order.id}` }}><FileSignature size={12} /> Aprovar</Button>
                       </div>
                     </td>
                   </tr>
@@ -1092,7 +1091,6 @@ export default function AdminPage() {
       </main>
 
       <ModalPedido />
-      <ModalFechamento />
       <ModalNovoPedido />
     </div>
   )

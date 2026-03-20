@@ -2,22 +2,22 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { useAdminStore, type DressItem, type OrderStatus } from "@/lib/admin-store"
-import { X, Trash2, Plus, Save, Calendar, Clock, User, Phone, Heart } from "lucide-react"
+import { X, Trash2, Plus, Save, Calendar, Clock, User, Phone, FileSignature } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export function ModalPedido() {
-  const { isOrderModalOpen, setOrderModalOpen, selectedOrder, products, updateOrderItems, updateOrderStatus, updateOrderFinancial, setSelectedOrder } = useAdminStore()
+  const router = useRouter()
+  const { isOrderModalOpen, setOrderModalOpen, selectedOrder, products, updateOrderFinancial, setSelectedOrder } = useAdminStore()
 
   const [localItems, setLocalItems] = useState<DressItem[]>([])
   const [localStatus, setLocalStatus] = useState<OrderStatus>("novo")
-  const [localTotal, setLocalTotal] = useState(0)
   const [localDate, setLocalDate] = useState("")
   const [localTime, setLocalTime] = useState("")
-  const [localEventoDate, setLocalEventoDate] = useState("")
   const [produtoSelecionado, setProdutoSelecionado] = useState<string>("")
   const [loading, setLoading] = useState(false)
 
@@ -25,19 +25,10 @@ export function ModalPedido() {
     if (selectedOrder && isOrderModalOpen) {
       setLocalItems(selectedOrder.items || [])
       setLocalStatus(selectedOrder.status)
-      setLocalTotal(selectedOrder.totalValue || 0)
       setLocalDate(selectedOrder.provaDate)
       setLocalTime(selectedOrder.provaTime)
-      setLocalEventoDate(selectedOrder.eventoDate || "")
     }
   }, [selectedOrder, isOrderModalOpen])
-
-  useEffect(() => {
-    if (isOrderModalOpen) {
-      const novoTotal = localItems.reduce((acc, item) => acc + (item.price || 0), 0)
-      setLocalTotal(novoTotal)
-    }
-  }, [localItems, isOrderModalOpen])
 
   if (!isOrderModalOpen || !selectedOrder) return null
 
@@ -53,7 +44,7 @@ export function ModalPedido() {
     const produtoBase = products.find(p => p.id === produtoSelecionado)
     if (!produtoBase) return
     if (localItems.some(i => i.id === produtoBase.id)) {
-      alert("Este vestido já está no pedido!")
+      alert("Este vestido já está na lista da prova!")
       return
     }
 
@@ -79,11 +70,9 @@ export function ModalPedido() {
       const dadosAtualizados = {
         ...selectedOrder,
         status: localStatus,
-        totalValue: localTotal,
         items: localItems,
         provaDate: localDate,
         provaTime: localTime,
-        eventoDate: localEventoDate
       }
 
       const res = await fetch(`/api/pedidos?id=${selectedOrder.id}`, {
@@ -96,7 +85,7 @@ export function ModalPedido() {
         updateOrderFinancial(selectedOrder.id, dadosAtualizados)
         handleClose()
       } else {
-        alert("Erro ao atualizar o pedido no banco de dados.")
+        alert("Erro ao atualizar o agendamento no banco de dados.")
       }
     } catch (error) {
       alert("Erro de conexão com a API.")
@@ -105,14 +94,20 @@ export function ModalPedido() {
     }
   }
 
+  const handleAprovarContrato = () => {
+    // Redireciona para a nova página de fechamento de contrato que iremos criar
+    setOrderModalOpen(false)
+    router.push(`/admin/fechamento/${selectedOrder.id}`)
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Pedido #{selectedOrder.id}</h2>
-            <p className="text-xs text-muted-foreground">Gerencie as peças e o contrato da cliente.</p>
+            <h2 className="text-lg font-semibold text-foreground">Agendamento de Prova #{selectedOrder.id}</h2>
+            <p className="text-xs text-muted-foreground">Faça a gestão da visita e das peças selecionadas.</p>
           </div>
           <button onClick={handleClose} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground">
             <X size={18} />
@@ -121,7 +116,7 @@ export function ModalPedido() {
 
         <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-8">
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-secondary/20 p-4 rounded-xl border border-border">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-secondary/20 p-4 rounded-xl border border-border">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><User size={16} /></div>
               <div>
@@ -137,13 +132,6 @@ export function ModalPedido() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 shrink-0"><Heart size={16} /></div>
-              <div className="flex-1">
-                <p className="text-xs text-pink-600 uppercase tracking-wider mb-1 font-bold">Data do Casamento</p>
-                <Input type="date" value={localEventoDate} onChange={(e) => setLocalEventoDate(e.target.value)} className="h-8 text-sm px-2 w-full border-pink-200 focus-visible:ring-pink-500" />
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><Calendar size={16} /></div>
               <div className="flex-1">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Data da Prova</p>
@@ -153,17 +141,17 @@ export function ModalPedido() {
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><Clock size={16} /></div>
               <div className="flex-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Horário da Prova</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Horário</p>
                 <Input type="time" value={localTime} onChange={(e) => setLocalTime(e.target.value)} className="h-8 text-sm px-2 w-full" />
               </div>
             </div>
           </div>
 
           <div className="flex flex-col gap-4">
-            <h3 className="font-semibold text-foreground border-b-2 border-primary pb-1">Peças no Pedido</h3>
-            <div className="flex flex-col gap-3">
+            <h3 className="font-semibold text-foreground border-b-2 border-primary pb-1">Peças para Provar</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {localItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic bg-secondary/30 p-4 rounded-lg text-center border border-dashed border-border">Nenhuma peça selecionada.</p>
+                <p className="text-sm text-muted-foreground italic bg-secondary/30 p-4 rounded-lg text-center border border-dashed border-border col-span-full">Nenhuma peça selecionada.</p>
               ) : (
                 localItems.map(item => (
                   <div key={item.id} className="flex items-center justify-between gap-4 bg-white p-3 rounded-xl border border-border shadow-sm">
@@ -176,10 +164,7 @@ export function ModalPedido() {
                         <p className="text-xs text-muted-foreground">SKU: {item.sku} · T{item.size}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <p className="text-sm font-medium whitespace-nowrap">R$ {item.price.toLocaleString('pt-BR')}</p>
-                      <button onClick={() => removerItem(item.id)} className="text-muted-foreground hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition-colors"><Trash2 size={16} /></button>
-                    </div>
+                    <button onClick={() => removerItem(item.id)} className="text-muted-foreground hover:text-red-500 hover:bg-red-50 p-2 rounded-md transition-colors"><Trash2 size={16} /></button>
                   </div>
                 ))
               )}
@@ -187,40 +172,36 @@ export function ModalPedido() {
 
             <div className="flex items-end gap-3 mt-2 bg-secondary/10 p-4 rounded-xl border border-border">
               <div className="flex-1">
-                <Label className="text-xs mb-1.5 block text-muted-foreground">Adicionar peça ao pedido</Label>
+                <Label className="text-xs mb-1.5 block text-muted-foreground">Adicionar peça à prova</Label>
                 <Select value={produtoSelecionado} onValueChange={setProdutoSelecionado}>
-                  <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Selecione um vestido do estoque..." /></SelectTrigger>
-                  <SelectContent>{products.map(p => <SelectItem key={p.id} value={p.id}>{p.sku} - {p.name} (R$ {p.rentalPrice || 0})</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Selecione um vestido do catálogo..." /></SelectTrigger>
+                  <SelectContent>{products.map(p => <SelectItem key={p.id} value={p.id}>{p.sku} - {p.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <Button onClick={adicionarItem} disabled={!produtoSelecionado} variant="outline" className="h-9 gap-1.5 border-primary/50 text-primary hover:bg-primary/10"><Plus size={16} /> Adicionar</Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-border mt-auto">
-            <div>
-              <Label className="text-xs mb-1.5 block">Status do Pedido</Label>
-              <Select value={localStatus} onValueChange={(v) => setLocalStatus(v as OrderStatus)}>
-                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="novo">Novo (Não Lido)</SelectItem>
-                  <SelectItem value="pendente">Pendente (Aguardando)</SelectItem>
-                  <SelectItem value="confirmado">Confirmado</SelectItem>
-                  <SelectItem value="compareceu">Compareceu à Prova</SelectItem>
-                  <SelectItem value="cancelado">Cancelado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col justify-center items-end bg-primary/5 px-4 rounded-lg border border-primary/10">
-              <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Valor Total</p>
-              <p className="text-2xl font-serif font-bold text-primary">R$ {localTotal.toLocaleString('pt-BR')}</p>
+          <div className="pt-4 border-t border-border mt-auto">
+            <Label className="text-xs mb-2 block font-semibold">Status do Agendamento</Label>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant={localStatus === "novo" ? "default" : "outline"} onClick={() => setLocalStatus("novo")} className={`h-9 text-xs ${localStatus === "novo" ? "bg-blue-600 hover:bg-blue-700" : ""}`}>Novo</Button>
+              <Button type="button" variant={localStatus === "pendente" ? "default" : "outline"} onClick={() => setLocalStatus("pendente")} className={`h-9 text-xs ${localStatus === "pendente" ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}>Aguardando</Button>
+              <Button type="button" variant={localStatus === "compareceu" ? "default" : "outline"} onClick={() => setLocalStatus("compareceu")} className={`h-9 text-xs ${localStatus === "compareceu" ? "bg-purple-600 hover:bg-purple-700" : ""}`}>Compareceu</Button>
+              <Button type="button" variant={localStatus === "cancelado" ? "default" : "outline"} onClick={() => setLocalStatus("cancelado")} className={`h-9 text-xs ${localStatus === "cancelado" ? "bg-gray-600 hover:bg-gray-700" : ""}`}>Cancelado</Button>
             </div>
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-end gap-3">
+        <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-between gap-3">
           <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
-          <Button onClick={handleSalvar} disabled={loading} className="gap-2 px-8 bg-primary"><Save size={16} /> {loading ? "A Salvar..." : "Salvar Alterações"}</Button>
+          <div className="flex items-center gap-3">
+            <Button onClick={handleSalvar} variant="outline" disabled={loading} className="gap-2"><Save size={16} /> Salvar Alterações</Button>
+            {/* O Grande Botão de Aprovação do Contrato */}
+            <Button onClick={handleAprovarContrato} disabled={loading} className="gap-2 px-6 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md">
+              <FileSignature size={16} /> Aprovar / Gerar Contrato
+            </Button>
+          </div>
         </div>
 
       </div>
