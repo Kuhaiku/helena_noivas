@@ -50,7 +50,7 @@ export function DressCard({ dress }: DressCardProps) {
           
           <div className="flex justify-between items-end pt-3 border-t border-border/50 mt-auto">
             <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground mb-0.5">Tamanho {dress.size}</span>
+              {/* <span className="text-xs text-muted-foreground mb-0.5">Tamanho {dress.size}</span> */}
               {dress.showPrice ? (
                 <span className="font-medium text-foreground">
                   R$ {(dress.rentalPrice || 0).toLocaleString('pt-BR')}

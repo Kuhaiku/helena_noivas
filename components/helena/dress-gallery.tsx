@@ -126,8 +126,8 @@ export function DressGallery({ dress, open, onClose }: DressGalleryProps) {
 
             <div className="flex flex-col gap-2 text-sm">
               <div className="flex items-center justify-between py-2 border-b border-border">
-                <span className="text-muted-foreground text-xs uppercase tracking-wide">Tamanhos</span>
-                <span className="font-medium text-foreground">{dress.size}</span>
+                {/* <span className="text-muted-foreground text-xs uppercase tracking-wide">Tamanhos</span>
+                <span className="font-medium text-foreground">{dress.size}</span> */}
               </div>
               
               {dress.showPrice && (
