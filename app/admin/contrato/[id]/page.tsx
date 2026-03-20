@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Printer, ArrowLeft, Save, FileText } from "lucide-react"
+import { Printer, ArrowLeft, Save, FileText, XCircle } from "lucide-react"
 
 export default function ContratoPage() {
   const router = useRouter()
@@ -17,28 +17,32 @@ export default function ContratoPage() {
 
   useEffect(() => {
     async function carregarDados() {
-      const res = await fetch('/api/pedidos')
-      if (res.ok) {
-        const pedidos = await resPed.json()
-        const encontrado = pedidos.find((p: any) => p.id === id)
-        if (encontrado) {
-          setOrder(encontrado)
-          
-          // Gera o texto base caso o banco esteja vazio
-          if (encontrado.contratoTexto && encontrado.contratoTexto.length > 10) {
-            setTextoContrato(encontrado.contratoTexto)
-          } else {
-            setTextoContrato(gerarTextoBase(encontrado))
+      try {
+        const res = await fetch('/api/pedidos')
+        if (res.ok) {
+          const pedidos = await res.json()
+          const encontrado = pedidos.find((p: any) => p.id === id)
+          if (encontrado) {
+            setOrder(encontrado)
+            
+            if (encontrado.contratoTexto && encontrado.contratoTexto.length > 10) {
+              setTextoContrato(encontrado.contratoTexto)
+            } else {
+              setTextoContrato(gerarTextoBase(encontrado))
+            }
           }
         }
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     carregarDados()
   }, [id])
 
   const gerarTextoBase = (o: any) => {
-    const itensTexto = o.items.map((i: any) => `• ${i.name} (SKU: ${i.sku}) - R$ ${Number(i.price).toLocaleString('pt-BR')}`).join('\n')
+    const itensTexto = o.items.map((i: any) => `• ${i.name} (SKU: ${i.sku}) - R$ ${Number(i.price).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`).join('\n')
     const totalTaxas = o.taxas?.reduce((acc: number, t: any) => acc + t.valor, 0) || 0
     const subtotal = o.items.reduce((acc: number, i: any) => acc + Number(i.price), 0) + totalTaxas
     const restante = Math.max(0, o.totalValue - o.signalPaid)
@@ -66,22 +70,24 @@ Neste ato, o(a) LOCATÁRIO(A) paga a título de SINAL a importância de R$ ${o.s
 Fica o saldo remanescente de R$ ${restante.toLocaleString('pt-BR', {minimumFractionDigits: 2})} a ser pago integralmente no momento da retirada do(s) traje(s).
 
 CLÁUSULA TERCEIRA - DA RETIRADA E DEVOLUÇÃO
-1. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+1. A retirada deverá ocorrer até 2 dias antes do evento.
 2. O traje deverá ser devolvido na mesma condição em que foi entregue, sendo proibida a lavagem ou alteração da peça pelo locatário.
 3. A não devolução do traje na data combinada implicará em multa diária por atraso no valor de R$ 50,00.
-4. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+4. O cliente se responsabiliza pela integridade das peças.
 5. Em caso de danos irreversíveis, manchas permanentes ou perda da peça, o locatário deverá ressarcir o valor de venda do traje.
 
-CLÁUSULA QUARTA - DO CANCELAMENTO
-A desistência da locação por parte do(a) LOCATÁRIO(A) implicará na perda do valor dado como sinal, para cobrir despesas operacionais e bloqueio de agenda.
+CLÁUSULA QUARTA - DO CANCELAMENTO E RESCISÃO
+A desistência da locação por parte do(a) LOCATÁRIO(A) implicará na perda integral do valor dado como sinal, para cobrir despesas operacionais e bloqueio de agenda da LOCADORA.
 
 E por estarem justos e contratados, assinam o presente em 2 (duas) vias de igual teor.
 
 Araruama, RJ, ${new Date().toLocaleDateString('pt-BR')}
 
 
+
 _______________________________________________________
 HELENA NOIVAS (Locadora)
+
 
 
 _______________________________________________________
@@ -100,6 +106,27 @@ ${o.clientName.toUpperCase()} (Locatário/a)
     setTimeout(() => window.print(), 300)
   }
 
+  const handleRescindir = async () => {
+    if (!confirm("ATENÇÃO: Deseja realmente rescindir este contrato?\n\nO status mudará para 'Cancelado', libertando as peças para outras noivas e a cliente perderá o valor do sinal.")) return
+    
+    setLoading(true)
+    try {
+      const pedidoAtualizado = { ...order, status: "cancelado" }
+      const res = await fetch(`/api/pedidos?id=${id}`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(pedidoAtualizado) 
+      })
+      if (res.ok) {
+        alert("Contrato rescindido com sucesso.")
+        router.push("/admin")
+      }
+    } catch (error) {
+      alert("Erro ao rescindir o contrato.")
+      setLoading(false)
+    }
+  }
+
   if (loading) return <div className="min-h-screen flex items-center justify-center">A carregar documento...</div>
 
   return (
@@ -107,6 +134,12 @@ ${o.clientName.toUpperCase()} (Locatário/a)
       <div className="bg-white border-b border-border sticky top-0 z-10 px-6 py-4 flex items-center justify-between shadow-sm print:hidden">
         <Button variant="ghost" onClick={() => router.push("/admin")} className="gap-2"><ArrowLeft size={16} /> Voltar ao Painel</Button>
         <div className="flex items-center gap-3">
+          
+          {/* ── BOTÃO DE RESCINDIR CONTRATO ── */}
+          <Button onClick={handleRescindir} variant="outline" className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
+            <XCircle size={16} /> Rescindir Contrato
+          </Button>
+
           {isEditing ? (
             <Button onClick={handleSalvarTexto} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"><Save size={16} /> Salvar Alterações</Button>
           ) : (
@@ -117,21 +150,27 @@ ${o.clientName.toUpperCase()} (Locatário/a)
       </div>
 
       {/* A FOLHA A4 */}
-      <div className="max-w-[800px] min-h-[1122px] mx-auto mt-8 bg-white shadow-xl p-12 print:shadow-none print:m-0 print:p-0">
+      <div className="max-w-[800px] min-h-[1122px] mx-auto mt-8 bg-white shadow-xl py-10 px-12 print:shadow-none print:m-0 print:py-8 print:px-8">
+        
         {/* Cabeçalho do Contrato */}
-        <div className="flex flex-col items-center justify-center mb-10 pb-6 border-b-2 border-primary">
-          <span className="font-serif text-3xl tracking-widest text-foreground">HELENA<span className="text-primary font-light ml-1">NOIVAS</span></span>
-          <p className="text-xs text-muted-foreground mt-1 tracking-widest">CNPJ: 00.000.000/0000-00 | (22) 99999-0000</p>
+        <div className="flex flex-col items-center justify-center mb-6 pb-4 border-b-2 border-black">
+          <span className="font-serif text-2xl tracking-widest text-black font-bold">HELENA<span className="font-light ml-1">NOIVAS</span></span>
+          <p className="text-[10px] text-black mt-1 tracking-widest">CNPJ: 00.000.000/0000-00 | (22) 99999-0000</p>
         </div>
 
+        {/* Corpo do Texto */}
         {isEditing ? (
           <textarea 
             value={textoContrato} 
             onChange={e => setTextoContrato(e.target.value)} 
-            className="w-full min-h-[800px] p-4 text-sm font-serif leading-relaxed border border-primary/50 rounded-xl focus:outline-none focus:ring-4 focus:ring-primary/10 resize-none"
+            style={{ fontFamily: "Arial, sans-serif", fontSize: "12pt", color: "black", lineHeight: "1.5" }}
+            className="w-full min-h-[850px] p-2 border border-primary/50 rounded-xl focus:outline-none focus:ring-4 focus:ring-primary/10 resize-none"
           />
         ) : (
-          <div className="text-sm font-serif leading-relaxed text-foreground whitespace-pre-wrap text-justify">
+          <div 
+            style={{ fontFamily: "Arial, sans-serif", fontSize: "12pt", color: "black", lineHeight: "1.5" }}
+            className="whitespace-pre-wrap text-justify"
+          >
             {textoContrato}
           </div>
         )}

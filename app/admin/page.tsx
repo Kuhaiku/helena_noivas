@@ -25,6 +25,7 @@ import {
   Filter,
   Pencil,
   FileSignature,
+  FileText, // <-- ÍCONE ADICIONADO AQUI
   Zap,
   Save,
   Clock,
@@ -291,7 +292,15 @@ function SectionPedidos() {
                     <td className="px-5 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => { setSelectedOrder(order); setOrderModalOpen(true) }}><Pencil size={12} /> Editar</Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => { window.location.href = `/admin/fechamento/${order.id}` }}><FileSignature size={12} /> Aprovar</Button>
+                        {order.status === "confirmado" ? (
+                          <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => { window.location.href = `/admin/contrato/${order.id}` }}>
+                            <FileText size={12} /> Ver Contrato
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => { window.location.href = `/admin/fechamento/${order.id}` }}>
+                            <FileSignature size={12} /> Aprovar
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -308,7 +317,7 @@ function SectionPedidos() {
 
 // ─── Financeiro ───────────────────────────────────────────────────────────────
 function SectionFinanceiro() {
-  const { transactions, deleteTransaction, addTransaction } = useAdminStore()
+  const { transactions, deleteTransaction, addTransaction, orders, updateOrderFinancial } = useAdminStore()
   const [isAdding, setIsAdding] = useState(false)
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({ type: "saida" as "entrada"|"saida", description: "", amount: "", date: new Date().toISOString().split("T")[0], category: "Operacional" })
@@ -316,6 +325,9 @@ function SectionFinanceiro() {
   const totalEntradas = transactions.filter(t => t.type === "entrada").reduce((acc, t) => acc + t.amount, 0)
   const totalSaidas = transactions.filter(t => t.type === "saida").reduce((acc, t) => acc + t.amount, 0)
   const saldo = totalEntradas - totalSaidas
+
+  // Contas a Receber: Contratos confirmados cujo sinal pago é menor que o total
+  const contasAReceber = orders.filter(o => o.status === "confirmado" && o.totalValue && (o.totalValue > (o.signalPaid || 0)))
 
   const handleSalvarManual = async () => {
     if (!form.description || !form.amount) return
@@ -342,6 +354,34 @@ function SectionFinanceiro() {
     if (res.ok) deleteTransaction(id)
   }
 
+  const handleReceberRestante = async (order: any) => {
+    const restante = order.totalValue - (order.signalPaid || 0)
+    if (!confirm(`Deseja lançar a quitação de R$ ${restante.toFixed(2)} referente ao contrato de ${order.clientName}?`)) return
+
+    try {
+      const transacao = {
+        type: "entrada",
+        description: `Quitação Final - Contrato #${order.id} (${order.clientName})`,
+        amount: restante,
+        date: new Date().toISOString().split("T")[0],
+        category: "Locação"
+      }
+      
+      const resFin = await fetch('/api/financeiro', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(transacao) })
+      const dataFin = await resFin.json()
+
+      const resPed = await fetch(`/api/pedidos?id=${order.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...order, signalPaid: order.totalValue }) })
+      
+      if (resFin.ok && resPed.ok) {
+        addTransaction({ id: dataFin.id, ...transacao } as any)
+        updateOrderFinancial(order.id, { signalPaid: order.totalValue })
+        alert("Pagamento lançado com sucesso!")
+      }
+    } catch (error) {
+      alert("Falha ao registrar quitação.")
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -366,6 +406,29 @@ function SectionFinanceiro() {
           <p className={`text-2xl font-bold ${saldo >= 0 ? 'text-primary' : 'text-red-600'}`}>R$ {saldo.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
         </div>
       </div>
+
+      {contasAReceber.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-2">
+          <h3 className="font-semibold text-blue-800 mb-3 text-sm">Valores Pendentes (Contratos a Receber)</h3>
+          <div className="flex flex-col gap-2">
+            {contasAReceber.map(o => {
+              const valorRestante = o.totalValue - (o.signalPaid || 0)
+              return (
+                <div key={o.id} className="flex items-center justify-between bg-white px-4 py-2.5 rounded-lg border border-blue-100 shadow-sm">
+                  <div>
+                    <p className="text-sm font-semibold">{o.clientName}</p>
+                    <p className="text-xs text-muted-foreground">Contrato #{o.id} · Vence na retirada</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <p className="font-bold text-blue-700">R$ {valorRestante.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                    <Button size="sm" onClick={() => handleReceberRestante(o)} className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white">Receber Restante</Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {isAdding && (
         <div className="bg-white rounded-xl border border-primary/30 p-6 flex flex-col gap-4 shadow-sm animate-in fade-in slide-in-from-top-4">
@@ -479,7 +542,6 @@ function SectionEstoque() {
             </thead>
             <tbody>
               {itensParaMostrar.map((item: any) => {
-                // BLINDAGEM DA IMAGEM
                 const imgSrc = item.images?.[0] || item.image;
                 const finalImg = (typeof imgSrc === 'string' && imgSrc.trim() !== '') ? imgSrc : "/placeholder.jpg";
 
@@ -578,7 +640,6 @@ function SectionConfiguracoes() {
     </div>
   )
 }
-
 
 // ─── Cadastro de Produto ──────────────────────────────────────────────────────
 function SectionCadastro() {
@@ -829,8 +890,6 @@ function SectionColecoes() {
   const [form, setForm] = useState({ name: "", description: "", productIds: [] as string[] })
 
   const openCreate = () => { setForm({ name: "", description: "", productIds: [] }); setEditing(null); setIsCreating(true); }
-  
-  // ── CORREÇÃO 1: Adicionado || "" no description ──
   const openEdit = (col: SeasonalCollection) => { setForm({ name: col.name, description: col.description || "", productIds: col.productIds }); setEditing(col); setIsCreating(true); }
 
   const handleSave = async () => {
@@ -842,7 +901,6 @@ function SectionColecoes() {
       const res = await fetch('/api/colecoes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, active: false }) })
       if (res.ok) {
         const data = await res.json()
-        // ── CORREÇÃO 2: Removido o createdAt que não pertencia à interface ──
         addCollection({ id: data.id, ...form, active: false })
       }
     }
