@@ -20,7 +20,14 @@ export function AdminSidebar() {
   const { section, setSection } = useAdminStore();
   const router = useRouter();
 
-  const handleLogout = () => router.push("/");
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.push("/login");
+    } catch (error) {
+      console.error("Failed to logout:", error);
+    }
+  };
 
   return (
     <aside className="w-64 bg-white border-r border-border h-screen sticky top-0 flex flex-col hidden md:flex shrink-0 shadow-sm">

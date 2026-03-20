@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Playfair_Display, Manrope } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { CookieBanner } from "@/components/helena/cookie-banner"
 import './globals.css'
 
 const playfair = Playfair_Display({
@@ -40,6 +41,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         {children}
         <Analytics />
+        <CookieBanner />
       </body>
     </html>
   )
