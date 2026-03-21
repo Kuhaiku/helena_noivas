@@ -415,6 +415,7 @@ function SectionPedidos() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos os status</SelectItem>
+            <SelectItem value="novo">Novo</SelectItem>
             <SelectItem value="pendente">Pendente</SelectItem>
             <SelectItem value="compareceu">Compareceu</SelectItem>
             <SelectItem value="cancelado">Cancelado</SelectItem>

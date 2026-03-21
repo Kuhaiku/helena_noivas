@@ -12,7 +12,8 @@ export async function GET() {
         windowAfter: row.window_after,
         provadores: row.provadores,
         sinalPercentage: row.sinal_percentage,
-        businessHours: typeof row.business_hours === 'string' ? JSON.parse(row.business_hours) : row.business_hours
+        businessHours: typeof row.business_hours === 'string' ? JSON.parse(row.business_hours) : row.business_hours,
+        contratoTemplate: row.contratoTemplate // <-- ADICIONADO: Lê o texto do contrato
       });
     }
     
@@ -29,16 +30,17 @@ export async function PUT(request: Request) {
     
     const sql = `
       UPDATE configuracoes 
-      SET window_before = ?, window_after = ?, provadores = ?, sinal_percentage = ?, business_hours = ? 
+      SET window_before = ?, window_after = ?, provadores = ?, sinal_percentage = ?, business_hours = ?, contratoTemplate = ? 
       WHERE id = 1
-    `;
+    `; // <-- ADICIONADO: Prepara a atualização do campo contratoTemplate
     
     await query(sql, [
       data.windowBefore,
       data.windowAfter,
       data.provadores,
       data.sinalPercentage,
-      JSON.stringify(data.businessHours) // Salva o array de horários como JSON no banco
+      JSON.stringify(data.businessHours), // Salva o array de horários como JSON no banco
+      data.contratoTemplate // <-- ADICIONADO: Envia o texto escrito para o SQL
     ]);
 
     return NextResponse.json({ success: true });
