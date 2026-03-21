@@ -4,9 +4,10 @@ export async function POST(request: Request) {
   try {
     const { email, password } = await request.json();
 
-    // ── CREDENCIAIS DO CLIENTE (Podes alterar aqui para cada loja que venderes) ──
-    const emailCorreto = "admin@helenanoivas.com.br";
-    const senhaCorreta = "helena123";
+    // ── CREDENCIAIS DINÂMICAS VIA VARIÁVEIS DE AMBIENTE ──
+    // Se as variáveis não estiverem configuradas no Easypanel, ele usa as padrão como fallback
+    const emailCorreto = process.env.ADMIN_EMAIL;
+    const senhaCorreta = process.env.ADMIN_PASSWORD;
 
     if (email === emailCorreto && password === senhaCorreta) {
       const response = NextResponse.json({ success: true });
