@@ -17,7 +17,6 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [orderId, setOrderId] = useState("")
-  // Removida a Data do Evento
   const [form, setForm] = useState({ name: "", phone: "", email: "", date: "", time: "" })
   
   const [config, setConfig] = useState<any>(null)
@@ -99,6 +98,14 @@ export default function CheckoutPage() {
     
     setLoading(true)
 
+    // OTIMIZAÇÃO: Enviamos apenas os IDs e os nomes básicos, não o objeto completo
+    const simplifiedItems = items.map(item => ({
+      id: item.id,
+      name: item.name,
+      sku: item.sku,
+      size: item.size
+    }))
+
     try {
       const res = await fetch('/api/pedidos', {
         method: 'POST',
@@ -109,9 +116,9 @@ export default function CheckoutPage() {
           clientEmail: form.email,
           provaDate: form.date,
           provaTime: form.time,
-          eventoDate: "", // Vazio, pois só será preenchido no fechamento
-          totalValue: 0,  // O valor só será calculado no contrato real
-          items: items
+          eventoDate: "", 
+          totalValue: 0,  
+          items: simplifiedItems
         })
       })
 
@@ -130,9 +137,11 @@ export default function CheckoutPage() {
     }
   }
 
+  // Renderização do Passo 2 (Sucesso)
   if (step === 2) {
     const mensagem = `Olá, Helena Noivas! Gostaria de confirmar o meu agendamento de prova realizado no site. (Pedido #${orderId})`
-    const whatsappUrl = `https://wa.me/5522999990000?text=${encodeURIComponent(mensagem)}`
+    const numeroWhatsApp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5522999990000"
+    const whatsappUrl = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -181,7 +190,6 @@ export default function CheckoutPage() {
                   <div className="flex-1 flex flex-col gap-1">
                     <h3 className="font-semibold text-foreground leading-tight">{item.name}</h3>
                     <p className="text-xs text-muted-foreground">Tamanho: {item.size} · SKU: {item.sku}</p>
-                    {/* Preço removido daqui */}
                   </div>
                   <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-red-500 p-2 transition-colors"><Trash2 size={18} /></button>
                 </div>
@@ -221,7 +229,7 @@ export default function CheckoutPage() {
               ) : dbError ? (
                 <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
                   <AlertCircle size={18} />
-                  <p className="text-sm font-medium">A atualizar horários. Tente selecionar a data novamente.</p>
+                  <p className="text-sm font-medium">Erro ao carregar horários. Verifique o banco de dados.</p>
                 </div>
               ) : availableSlots.length === 0 ? (
                 <p className="text-sm text-red-500 font-medium">A loja encontra-se fechada nesta data.</p>
@@ -249,7 +257,6 @@ export default function CheckoutPage() {
             </div>
 
             <div className="border-t border-border mt-2 pt-6">
-              {/* Total Estimado removido */}
               <Button type="submit" disabled={loading || items.length === 0 || !form.time || dbError} className="w-full h-14 text-base font-semibold rounded-xl">
                 {loading ? "A processar..." : "Confirmar Agendamento"}
               </Button>

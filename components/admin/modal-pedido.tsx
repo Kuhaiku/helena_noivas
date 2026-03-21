@@ -61,38 +61,53 @@ export function ModalPedido() {
     setLocalItems([...localItems, novoItem])
     setProdutoSelecionado("")
   }
+const handleSalvar = async () => {
+  if (!localDate || !localTime) return alert("A data e a hora da prova não podem estar vazias.");
+  
+  setLoading(true);
+  try {
+    // Mantemos os dados visuais no estado local, mas simplificamos para o banco
+    const simplifiedItems = localItems.map(item => ({
+      id: item.id,
+      name: item.name,
+      sku: item.sku,
+      size: item.size
+    }));
 
-  const handleSalvar = async () => {
-    if (!localDate || !localTime) return alert("A data e a hora da prova não podem estar vazias.")
-    
-    setLoading(true)
-    try {
-      const dadosAtualizados = {
+    const dadosParaAPI = {
+      ...selectedOrder,
+      status: localStatus,
+      items: simplifiedItems,
+      provaDate: localDate,
+      provaTime: localTime,
+    };
+
+    const res = await fetch(`/api/pedidos?id=${selectedOrder.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dadosParaAPI)
+    });
+
+    if (res.ok) {
+      // Para o estado global (Store), passamos os itens com as imagens para não sumirem da tela
+      updateOrderFinancial(selectedOrder.id, {
         ...selectedOrder,
         status: localStatus,
-        items: localItems,
+        items: localItems, // Aqui usamos os itens completos (com imagem/preço) para a interface
         provaDate: localDate,
         provaTime: localTime,
-      }
-
-      const res = await fetch(`/api/pedidos?id=${selectedOrder.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dadosAtualizados)
-      })
-
-      if (res.ok) {
-        updateOrderFinancial(selectedOrder.id, dadosAtualizados)
-        handleClose()
-      } else {
-        alert("Erro ao atualizar o agendamento no banco de dados.")
-      }
-    } catch (error) {
-      alert("Erro de conexão com a API.")
-    } finally {
-      setLoading(false)
+      } as any); 
+      
+      handleClose();
+    } else {
+      alert("Erro ao atualizar o agendamento.");
     }
+  } catch (error) {
+    alert("Erro de conexão.");
+  } finally {
+    setLoading(false);
   }
+};
 
   const handleAprovarContrato = () => {
     // Redireciona para a nova página de fechamento de contrato que iremos criar
