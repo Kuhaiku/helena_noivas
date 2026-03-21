@@ -1,11 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  output: "standalone", // Essencial para o Easypanel/Docker
   images: {
-    unoptimized: true,
+    remotePatterns: [
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "anjodanoiva.com.br" },
+      { protocol: "https", hostname: "res.cloudinary.com" },
+    ],
   },
-}
+};
 
-export default nextConfig
+module.exports = nextConfig;
