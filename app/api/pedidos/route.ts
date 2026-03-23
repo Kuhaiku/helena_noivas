@@ -1,49 +1,45 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 
-// Interface para garantir a tipagem correta dos dados do produto no estoque
-interface ProdutoEstoque {
-  id: number;
-  images: string;
-  rentalPrice: number;
-}
-
 export async function GET() {
   try {
-    // O índice idx_criado_em já existe no banco (conforme o erro 1061), 
-    // o que resolve o problema de sort memory.
-    const sql = `SELECT * FROM pedidos ORDER BY criado_em DESC`;
+    // 1. Busca todos os pedidos (sem ORDER BY para evitar o erro de memória)
+    const sql = `SELECT * FROM pedidos`;
     const resultados: any = await query(sql);
 
-    // Buscamos dados básicos dos produtos para completar as informações dos itens (como imagens)
-    const produtosRaw: any = await query("SELECT id, images, rentalPrice FROM produtos");
-    
-    // Mapa tipado para busca rápida por ID
-    const produtosMap = new Map<string, ProdutoEstoque>(
-      produtosRaw.map((p: ProdutoEstoque) => [p.id.toString(), p])
-    );
+    // 2. Ordena os pedidos com JavaScript
+    resultados.sort((a: any, b: any) => {
+      const dataA = a.criado_em ? new Date(a.criado_em).getTime() : 0;
+      const dataB = b.criado_em ? new Date(b.criado_em).getTime() : 0;
+      return dataB - dataA;
+    });
+
+    // 3. Busca os produtos e as imagens usando os nomes reais das tabelas e colunas
+    const produtosRaw: any = await query("SELECT id, preco_aluguel FROM produtos");
+    const imagensRaw: any = await query("SELECT produto_id, url FROM produto_imagens");
+
+    // 4. Cria o mapa cruzando os produtos com as suas imagens
+    const produtosMap = new Map();
+    produtosRaw.forEach((p: any) => {
+      const fotosDoProduto = imagensRaw
+        .filter((img: any) => img.produto_id === p.id)
+        .map((img: any) => img.url);
+
+      produtosMap.set(p.id.toString(), {
+        rentalPrice: Number(p.preco_aluguel) || 0,
+        images: fotosDoProduto.length > 0 ? fotosDoProduto : ["/placeholder.jpg"]
+      });
+    });
 
     const pedidosFormatados = resultados.map((p: any) => {
       const itensRaw = p.itens ? (typeof p.itens === "string" ? JSON.parse(p.itens) : p.itens) : [];
       
-      // Recheia os itens com dados do estoque atual (evita salvar imagens pesadas no pedido)
       const itemsCompletos = itensRaw.map((item: any) => {
         const infoEstoque = produtosMap.get(item.id.toString());
         
-        let imagens: string[] = [];
-        try {
-          if (infoEstoque?.images) {
-            imagens = typeof infoEstoque.images === 'string' 
-              ? JSON.parse(infoEstoque.images) 
-              : infoEstoque.images;
-          }
-        } catch (e) { 
-          imagens = []; 
-        }
-
         return {
           ...item,
-          image: item.image || imagens[0] || "/placeholder.jpg",
+          image: item.image || infoEstoque?.images[0] || "/placeholder.jpg",
           price: item.price || infoEstoque?.rentalPrice || 0
         };
       });
@@ -84,7 +80,7 @@ export async function POST(request: Request) {
     const data = await request.json();
     const sql = `INSERT INTO pedidos (clientName, clientPhone, clientEmail, provaDate, provaTime, eventoDate, status, totalValue, itens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
     
-    // Armazenamos o JSON simplificado (sem imagens base64) para manter a tabela leve
+    // Armazenamos o JSON simplificado para manter o banco leve
     const result: any = await query(sql, [
       data.clientName,
       data.clientPhone,
@@ -97,7 +93,9 @@ export async function POST(request: Request) {
       JSON.stringify(data.items || []),
     ]);
 
-    return NextResponse.json({ success: true, id: result.insertId.toString() });
+    // Usamos LAST_INSERT_ID() para pegar o ID correto da inserção no MySQL
+    const lastId: any = await query("SELECT LAST_INSERT_ID() as id");
+    return NextResponse.json({ success: true, id: lastId[0].id.toString() });
   } catch (error) {
     console.error("Erro ao criar pedido:", error);
     return NextResponse.json({ success: false }, { status: 500 });

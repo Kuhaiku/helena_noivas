@@ -95,10 +95,13 @@ export interface Order {
   contratoTexto?: string;
   totalValue: number;
   signalPaid: number;
+  // ── CAMPOS ADICIONADOS PARA O FINANCEIRO ──
+  cautionValue?: number;
+  quitDate?: string;
+  discountTotal?: number;
   createdAt: string;
 }
 
-// ── ADICIONADO contratoTemplate ──
 export interface StoreConfig {
   windowBefore: number;
   windowAfter: number;
@@ -150,17 +153,21 @@ interface AdminStore {
   setCatalog: (cat: Product[]) => void;
   editingProduct: Product | null;
   setEditingProduct: (prod: Product | null) => void;
-  isOrderModalOpen: boolean;
   selectedOrder: Order | null;
-  setOrderModalOpen: (isOpen: boolean) => void;
   setSelectedOrder: (order: Order | null) => void;
   filterStatus: string;
   setFilterStatus: (status: string) => void;
   filterDate: string;
   setFilterDate: (date: string) => void;
+  
+  // ── ESTADOS DOS MODAIS CORRIGIDOS ──
+  isOrderModalOpen: boolean;
+  setOrderModalOpen: (isOpen: boolean) => void;
+  isFinancialModalOpen: boolean;
   setFinancialModalOpen: (isOpen: boolean) => void;
+  isNewOrderModalOpen: boolean;
   setNewOrderModalOpen: (isOpen: boolean) => void;
-  // ── ADICIONADO updateTransaction ──
+  
   transactions: Transaction[];
   setTransactions: (t: Transaction[]) => void;
   addTransaction: (t: Transaction) => void;
@@ -221,16 +228,21 @@ export const useAdminStore = create<AdminStore>((set) => ({
   setCatalog: (catalog) => set({ catalog }),
   editingProduct: null,
   setEditingProduct: (editingProduct) => set({ editingProduct }),
-  isOrderModalOpen: false,
   selectedOrder: null,
-  setOrderModalOpen: (isOpen) => set({ isOrderModalOpen: isOpen }),
   setSelectedOrder: (order) => set({ selectedOrder: order }),
   filterStatus: "todos",
   setFilterStatus: (status) => set({ filterStatus: status }),
   filterDate: "",
   setFilterDate: (date) => set({ filterDate: date }),
-  setFinancialModalOpen: () => {},
-  setNewOrderModalOpen: () => {},
+  
+  // ── IMPLEMENTAÇÃO DOS ESTADOS DE MODAL CORRIGIDOS ──
+  isOrderModalOpen: false,
+  setOrderModalOpen: (isOpen) => set({ isOrderModalOpen: isOpen }),
+  isFinancialModalOpen: false,
+  setFinancialModalOpen: (isOpen) => set({ isFinancialModalOpen: isOpen }),
+  isNewOrderModalOpen: false,
+  setNewOrderModalOpen: (isOpen) => set({ isNewOrderModalOpen: isOpen }),
+  
   transactions: [],
   setTransactions: (transactions) => set({ transactions }),
   addTransaction: (t) =>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useAdminStore } from "@/lib/admin-store";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { MetricCard } from "@/components/admin/metric-card";
@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,9 +55,12 @@ import {
   PackageOpen,
   AlertCircle,
   Search,
-  Unlock
+  Unlock,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import type { Product, SeasonalCollection, Category } from "@/lib/admin-store";
+
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 function SectionDashboard() {
@@ -536,42 +540,42 @@ function SectionPedidos() {
   );
 }
 
-// ─── NOVA ABA: CONTRATOS & LOGÍSTICA ──────────────────────────────────────────
+
+// ─── ABA DE LOGÍSTICA & GIRO DE PEÇAS ──────────────────────────────────────────
 function SectionContratos() {
   const { orders, updateOrderStatus, updateProduct } = useAdminStore();
 
-  // Só exibe contratos que estão rolando ou concluídos recentemente
+  // Filtramos apenas os contratos que afetam a logística atual
   const contratos = orders
-    .filter(
-      (o) =>
-        o.status === "confirmado" ||
-        o.status === "em_uso" ||
-        o.status === "concluido",
-    )
+    .filter((o) => o.status === "confirmado" || o.status === "em_uso")
     .sort((a, b) => (a.eventoDate || "").localeCompare(b.eventoDate || ""));
 
+  // MÁGICA: Transformamos os contratos numa lista plana de PEÇAS ALUGADAS
+  const pecasNaRua = contratos.flatMap((order) =>
+    order.items.map((item) => ({
+      ...item,
+      orderId: order.id,
+      clientName: order.clientName,
+      clientPhone: order.clientPhone,
+      eventoDate: order.eventoDate,
+      status: order.status,
+      orderRaw: order,
+    }))
+  ).sort((a, b) => (a.eventoDate || "").localeCompare(b.eventoDate || ""));
+
   const [devolvendo, setDevolvendo] = useState<any>(null);
-  const [devolucaoStatus, setDevolucaoStatus] = useState<
-    "livre" | "manutencao"
-  >("livre");
+  const [devolucaoStatus, setDevolucaoStatus] = useState<"livre" | "manutencao">("livre");
   const [multa, setMulta] = useState(0);
+  
+  // ESTADO PARA CONTROLAR A LINHA EXPANDIDA (O COMPROVANTE)
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const registrarRetirada = async (order: any) => {
     const pendente = order.totalValue - (order.signalPaid || 0);
     if (pendente > 0) {
-      if (
-        !confirm(
-          `ATENÇÃO! A cliente ainda deve R$ ${pendente.toFixed(2)}. Tem certeza que deseja libertar os vestidos para retirada sem registrar o pagamento?`,
-        )
-      )
-        return;
+      if (!confirm(`ATENÇÃO! A cliente ainda deve R$ ${pendente.toFixed(2)}. Tem certeza que deseja liberar os vestidos sem registrar o pagamento?`)) return;
     } else {
-      if (
-        !confirm(
-          "Confirmar a retirada das peças pela cliente? O status mudará para 'Em Uso'.",
-        )
-      )
-        return;
+      if (!confirm("Confirmar a retirada das peças pela cliente? O status mudará para 'Em Uso'.")) return;
     }
 
     const res = await fetch(`/api/pedidos?id=${order.id}`, {
@@ -585,7 +589,6 @@ function SectionContratos() {
   const registrarDevolucao = async () => {
     if (!devolvendo) return;
     try {
-      // Atualiza o pedido
       await fetch(`/api/pedidos?id=${devolvendo.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -593,7 +596,7 @@ function SectionContratos() {
       });
       updateOrderStatus(devolvendo.id, "concluido");
 
-      // Atualiza o estoque de CADA peça
+      // Atualiza o estoque das peças devolvidas (Livre ou Manutenção)
       for (const item of devolvendo.items) {
         await fetch(`/api/produtos?id=${item.id}`, {
           method: "PUT",
@@ -603,7 +606,6 @@ function SectionContratos() {
         updateProduct(item.id, { stock: devolucaoStatus });
       }
 
-      // Se houver multa, lança no financeiro
       if (multa > 0) {
         await fetch("/api/financeiro", {
           method: "POST",
@@ -621,208 +623,244 @@ function SectionContratos() {
       setDevolvendo(null);
       setMulta(0);
       setDevolucaoStatus("livre");
-      alert("Devolução concluída! Peças atualizadas no estoque.");
+      alert("Devolução concluída! Peças organizadas.");
     } catch (e) {
       alert("Erro ao concluir devolução.");
     }
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedOrderId(expandedOrderId === id ? null : id);
   };
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-foreground">
-          Contratos & Logística
+          Logística & Giro de Peças
         </h1>
         <p className="text-sm text-muted-foreground">
-          Acompanhe as retiradas e devoluções das peças.
+          Acompanhe onde está cada vestido e gira as retiradas e devoluções.
         </p>
       </div>
 
-      <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/40">
-              <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase">
-                ID
-              </th>
-              <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase">
-                Cliente
-              </th>
-              <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase">
-                Casamento
-              </th>
-              <th className="text-center px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase">
-                Status
-              </th>
-              <th className="text-right px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase">
-                Ações
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {contratos.map((order) => {
-              const pendente = order.totalValue - (order.signalPaid || 0);
-              return (
-                <tr
-                  key={order.id}
-                  className="border-b border-border hover:bg-muted/30"
-                >
-                  <td className="px-5 py-4 font-mono text-xs text-muted-foreground">
-                    {order.id}
-                  </td>
-                  <td className="px-5 py-4">
-                    <p className="font-medium text-foreground">
-                      {order.clientName}
-                    </p>
-                    {pendente > 0 ? (
-                      <span className="text-[10px] text-red-600 font-bold">
-                        Deve R$ {pendente.toFixed(2)}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-emerald-600 font-bold">
-                        Total Pago
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-5 py-4 font-medium">
-                    {order.eventoDate
-                      ? order.eventoDate.split("-").reverse().join("/")
-                      : "-"}
-                  </td>
-                  <td className="px-5 py-4 text-center">
-                    {order.status === "confirmado" && (
-                      <span className="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">
-                        Aguardando Retirada
-                      </span>
-                    )}
-                    {order.status === "em_uso" && (
-                      <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">
-                        Em Uso pela Cliente
-                      </span>
-                    )}
-                    {order.status === "concluido" && (
-                      <span className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">
-                        Concluído
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-5 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs"
-                        onClick={() => {
-                          window.location.href = `/admin/contrato/${order.id}`;
-                        }}
-                      >
-                        <FileText size={14} className="mr-1.5" /> PDF
-                      </Button>
+      <Tabs defaultValue="contratos" className="w-full flex flex-col gap-5">
+        <TabsList className="w-fit bg-white border border-border shadow-sm h-11 px-1">
+          <TabsTrigger value="contratos" className="gap-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+            <ClipboardList size={14} /> Visão por Contratos
+          </TabsTrigger>
+          <TabsTrigger value="pecas" className="gap-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+            <Layers size={14} /> Giro de Peças Individuais
+          </TabsTrigger>
+        </TabsList>
 
-                      {order.status === "confirmado" && (
-                        <Button
-                          size="sm"
-                          className="h-8 text-xs bg-primary"
-                          onClick={() => registrarRetirada(order)}
-                        >
-                          <PackageCheck size={14} className="mr-1.5" /> Liberar
-                          Retirada
-                        </Button>
-                      )}
-                      {order.status === "em_uso" && (
-                        <Button
-                          size="sm"
-                          className="h-8 text-xs bg-amber-600 hover:bg-amber-700"
-                          onClick={() => setDevolvendo(order)}
-                        >
-                          <PackageOpen size={14} className="mr-1.5" /> Receber
-                          Devolução
-                        </Button>
-                      )}
-                    </div>
-                  </td>
+        {/* ── VISÃO 1: CONTRATOS COM EXPANSÃO (COMPROVANTE) ── */}
+        <TabsContent value="contratos" className="m-0 focus-visible:outline-none">
+          <div className="bg-white rounded-xl border border-border overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  <th className="w-10 px-3 py-3 text-center"></th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase">ID</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Cliente</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Casamento</th>
+                  <th className="text-center px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Ações</th>
                 </tr>
-              );
-            })}
-            {contratos.length === 0 && (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-5 py-10 text-center text-muted-foreground"
-                >
-                  Nenhum contrato ativo.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {contratos.map((order) => {
+                  const pendente = order.totalValue - (order.signalPaid || 0);
+                  const isExpanded = expandedOrderId === order.id;
 
+                  return (
+                    <Fragment key={order.id}>
+                      <tr 
+                        className={`border-b border-border hover:bg-muted/30 transition-colors ${isExpanded ? 'bg-muted/10' : ''}`}
+                      >
+                        <td className="px-3 py-4 text-center cursor-pointer" onClick={() => toggleExpand(order.id)}>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-primary/10 hover:text-primary">
+                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </Button>
+                        </td>
+                        <td className="px-3 py-4 font-mono text-xs text-muted-foreground cursor-pointer" onClick={() => toggleExpand(order.id)}>
+                          {order.id}
+                        </td>
+                        <td className="px-5 py-4 cursor-pointer" onClick={() => toggleExpand(order.id)}>
+                          <p className="font-medium text-foreground">{order.clientName}</p>
+                          {pendente > 0 ? (
+                            <span className="text-[10px] text-red-600 font-bold">Deve R$ {pendente.toFixed(2)}</span>
+                          ) : (
+                            <span className="text-[10px] text-emerald-600 font-bold">Total Pago</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 font-medium cursor-pointer" onClick={() => toggleExpand(order.id)}>
+                          {order.eventoDate ? order.eventoDate.split("-").reverse().join("/") : "-"}
+                        </td>
+                        <td className="px-5 py-4 text-center cursor-pointer" onClick={() => toggleExpand(order.id)}>
+                          {order.status === "confirmado" && <span className="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">Aguardando Retirada</span>}
+                          {order.status === "em_uso" && <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">Em Uso pela Cliente</span>}
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { window.location.href = `/admin/contrato/${order.id}`; }}>
+                              <FileText size={14} className="mr-1.5" /> PDF
+                            </Button>
+                            {order.status === "confirmado" && (
+                              <Button size="sm" className="h-8 text-xs bg-primary" onClick={() => registrarRetirada(order)}>
+                                <PackageCheck size={14} className="mr-1.5" /> Liberar Retirada
+                              </Button>
+                            )}
+                            {order.status === "em_uso" && (
+                              <Button size="sm" className="h-8 text-xs bg-amber-600 hover:bg-amber-700" onClick={() => setDevolvendo(order)}>
+                                <PackageOpen size={14} className="mr-1.5" /> Receber Devolução
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* GAVETA EXPANDIDA (COMPROVANTE) */}
+                      {isExpanded && (
+                        <tr className="bg-muted/10 border-b border-border shadow-inner">
+                          <td colSpan={6} className="px-8 py-6">
+                            <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
+                              <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+                                <h3 className="font-semibold text-foreground flex items-center gap-2">
+                                  <Layers size={16} className="text-primary"/> Comprovante de Peças ({order.items?.length || 0})
+                                </h3>
+                                <div className="text-right">
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">Valor Total do Contrato</p>
+                                  <p className="text-lg font-bold text-primary">R$ {(order.totalValue || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {order.items?.map((item: any, idx: number) => {
+                                  const imgSrc = item.image || "/placeholder.jpg";
+                                  return (
+                                    <div key={idx} className="flex gap-4 p-3 rounded-lg border border-border/60 hover:border-primary/30 transition-colors bg-secondary/5">
+                                      <div className="relative w-16 h-20 rounded-md overflow-hidden shrink-0 border border-border">
+                                        <Image src={imgSrc} alt={item.name} fill className="object-cover object-top" sizes="64px" />
+                                      </div>
+                                      <div className="flex flex-col justify-center flex-1">
+                                        <p className="text-sm font-semibold text-foreground line-clamp-1" title={item.name}>{item.name}</p>
+                                        <div className="flex gap-2 text-xs text-muted-foreground mt-1 mb-2 font-mono bg-white w-fit px-1.5 py-0.5 rounded border border-border/50">
+                                          <span>{item.sku}</span>
+                                          <span>|</span>
+                                          <span>Tam: {item.size}</span>
+                                        </div>
+                                        <p className="text-xs font-medium text-emerald-600">R$ {(item.price || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+                {contratos.length === 0 && (
+                  <tr><td colSpan={6} className="px-5 py-10 text-center text-muted-foreground">Nenhum contrato ativo.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
+
+        {/* ── VISÃO 2: GIRO DE PEÇAS INDIVIDUAIS ── */}
+        <TabsContent value="pecas" className="m-0 focus-visible:outline-none">
+          <div className="bg-white rounded-xl border border-border overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Peça</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Cliente</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Data Evento</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Localização / Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pecasNaRua.map((peca, idx) => {
+                    const imgSrc = peca.image || "/placeholder.jpg";
+                    return (
+                      <tr key={`${peca.orderId}-${peca.id}-${idx}`} className="border-b border-border hover:bg-muted/30">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="relative w-10 h-12 rounded-md overflow-hidden bg-secondary shrink-0 border border-border/50">
+                              <Image src={imgSrc} alt={peca.name} fill className="object-cover" sizes="40px" />
+                            </div>
+                            <div>
+                              <span className="font-semibold text-foreground text-xs">{peca.name}</span>
+                              <p className="text-[10px] text-muted-foreground font-mono">SKU: {peca.sku} | T: {peca.size}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <p className="font-medium text-foreground text-xs">{peca.clientName}</p>
+                          <a href={`https://wa.me/${peca.clientPhone?.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="text-[10px] text-primary hover:underline flex items-center gap-1 mt-0.5">
+                            {peca.clientPhone}
+                          </a>
+                        </td>
+                        <td className="px-5 py-3 font-medium text-xs">
+                          {peca.eventoDate ? peca.eventoDate.split("-").reverse().join("/") : "-"}
+                        </td>
+                        <td className="px-5 py-3">
+                          {peca.status === "confirmado" ? (
+                            <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center w-fit gap-1.5 border border-blue-100">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> Na Loja (Reservado)
+                            </span>
+                          ) : (
+                            <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center w-fit gap-1.5 border border-amber-100">
+                              <PackageOpen size={12} /> Com a Cliente
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {pecasNaRua.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-10 text-center text-muted-foreground">Nenhuma peça alugada no momento.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* MODAL DE DEVOLUÇÃO MANTIDO INTACTO */}
       {devolvendo && (
         <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md flex flex-col gap-5">
             <div>
-              <h2 className="text-lg font-bold text-foreground">
-                Receber Devolução
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Contrato #{devolvendo.id} - {devolvendo.clientName}
-              </p>
+              <h2 className="text-lg font-bold text-foreground">Receber Devolução</h2>
+              <p className="text-sm text-muted-foreground">Contrato #{devolvendo.id} - {devolvendo.clientName}</p>
             </div>
-
             <div>
-              <Label className="text-xs mb-2 block font-semibold text-primary">
-                Estado em que os vestidos retornaram:
-              </Label>
+              <Label className="text-xs mb-2 block font-semibold text-primary">Estado em que os vestidos retornaram:</Label>
               <div className="grid grid-cols-2 gap-3">
-                <Button
-                  type="button"
-                  variant={devolucaoStatus === "livre" ? "default" : "outline"}
-                  onClick={() => setDevolucaoStatus("livre")}
-                  className="h-10 text-xs"
-                >
-                  Perfeitos (Pronto p/ Vitrine)
+                <Button type="button" variant={devolucaoStatus === "livre" ? "default" : "outline"} onClick={() => setDevolucaoStatus("livre")} className="h-10 text-xs">
+                  Perfeitos (Vitrine)
                 </Button>
-                <Button
-                  type="button"
-                  variant={
-                    devolucaoStatus === "manutencao" ? "default" : "outline"
-                  }
-                  onClick={() => setDevolucaoStatus("manutencao")}
-                  className="h-10 text-xs text-amber-700 border-amber-200 hover:bg-amber-50"
-                >
-                  Manutenção / Lavanderia
+                <Button type="button" variant={devolucaoStatus === "manutencao" ? "default" : "outline"} onClick={() => setDevolucaoStatus("manutencao")} className="h-10 text-xs text-amber-700 border-amber-200 hover:bg-amber-50">
+                  Lavanderia / Reparo
                 </Button>
               </div>
             </div>
-
             <div>
-              <Label className="text-xs mb-1.5 block">
-                Houve atraso ou avaria? Cobrar Multa (R$):
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                value={multa}
-                onChange={(e) => setMulta(Number(e.target.value))}
-                className="h-10"
-              />
+              <Label className="text-xs mb-1.5 block">Houve atraso ou avaria? Cobrar Multa (R$):</Label>
+              <Input type="number" min={0} value={multa} onChange={(e) => setMulta(Number(e.target.value))} className="h-10" />
             </div>
-
             <div className="flex gap-3 pt-2">
-              <Button
-                onClick={() => setDevolvendo(null)}
-                variant="ghost"
-                className="flex-1"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={registrarDevolucao}
-                className="flex-1 bg-amber-600 hover:bg-amber-700"
-              >
-                Confirmar Recebimento
-              </Button>
+              <Button onClick={() => setDevolvendo(null)} variant="ghost" className="flex-1">Cancelar</Button>
+              <Button onClick={registrarDevolucao} className="flex-1 bg-amber-600 hover:bg-amber-700">Confirmar Recebimento</Button>
             </div>
           </div>
         </div>
@@ -1315,8 +1353,8 @@ function SectionEstoque() {
     }
   }
 
-  // ── FUNÇÃO PARA LIBERAR PEÇA COM 1 CLIQUE ──
-  const handleLiberarPeca = async (id: string) => {
+  // Agora esta função serve apenas para tirar da Manutenção e voltar para a Vitrine
+  const handleAtivarPeca = async (id: string) => {
     try {
       const res = await fetch(`/api/produtos?id=${id}`, {
         method: 'PUT',
@@ -1337,13 +1375,12 @@ function SectionEstoque() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Gestão de Estoque</h1>
-          <p className="text-sm text-muted-foreground">{itensParaMostrar.length} peças cadastradas</p>
+          <h1 className="text-xl font-semibold text-foreground">Catálogo & Inventário</h1>
+          <p className="text-sm text-muted-foreground">{itensParaMostrar.length} peças cadastradas na loja</p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={() => { setEditingProduct(null); setSection("cadastro"); }}><Plus size={14} /> Nova Peça</Button>
       </div>
 
-      {/* ── BARRA DE FILTROS ── */}
       <div className="flex gap-3 flex-wrap items-center bg-white border border-border rounded-xl p-4 shadow-sm">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -1355,14 +1392,13 @@ function SectionEstoque() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-9 text-sm w-48">
+          <SelectTrigger className="h-9 text-sm w-56">
             <SelectValue placeholder="Filtrar por Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="todos">Todos os Status</SelectItem>
-            <SelectItem value="livre">Disponível (Livre)</SelectItem>
-            <SelectItem value="alugado">Alugado</SelectItem>
-            <SelectItem value="manutencao">Em Manutenção</SelectItem>
+            <SelectItem value="todos">Todos (Ativos e Inativos)</SelectItem>
+            <SelectItem value="livre">Disponível no Catálogo</SelectItem>
+            <SelectItem value="manutencao">Em Manutenção / Inativo</SelectItem>
           </SelectContent>
         </Select>
         {(searchTerm || statusFilter !== "todos") && (
@@ -1380,7 +1416,7 @@ function SectionEstoque() {
                 <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Peça</th>
                 <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">SKU</th>
                 <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tamanho</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Condição Física</th>
                 <th className="text-right px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ações</th>
               </tr>
             </thead>
@@ -1401,19 +1437,28 @@ function SectionEstoque() {
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{item.sku}</td>
                     <td className="px-5 py-3 text-muted-foreground">{item.size}</td>
-                    <td className="px-5 py-3"><StockStatusBadge status={item.stock || 'livre'} /></td>
+                    <td className="px-5 py-3">
+                      {item.stock === 'manutencao' ? (
+                        <span className="bg-red-50 text-red-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center w-fit gap-1">
+                          <AlertCircle size={12} /> Inativo/Manutenção
+                        </span>
+                      ) : (
+                        <span className="bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center w-fit gap-1">
+                          <CheckCircle2 size={12} /> Ativo no Catálogo
+                        </span>
+                      )}
+                    </td>
                     <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
                       
-                      {/* BOTÃO DE LIBERAR PEÇA RÁPIDA */}
-                      {item.stock !== 'livre' && (
+                      {item.stock === 'manutencao' && (
                         <Button 
                           size="sm" 
                           variant="outline" 
                           className="h-7 text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50" 
-                          onClick={() => handleLiberarPeca(item.id)}
-                          title="Marcar como Disponível na Vitrine"
+                          onClick={() => handleAtivarPeca(item.id)}
+                          title="Devolver para o Catálogo"
                         >
-                          <Unlock size={12} /> Liberar
+                          <Unlock size={12} /> Reativar
                         </Button>
                       )}
 
@@ -1705,7 +1750,7 @@ function SectionCadastro() {
                 />
               </div>
               <div>
-                <Label className="text-xs mb-1.5">Quantidade</Label>
+                <Label className="text-xs mb-1.5">Quantidade FÍSICA</Label>
                 <Input
                   type="number"
                   min={1}
@@ -1723,7 +1768,7 @@ function SectionCadastro() {
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <div>
-                <Label className="text-xs mb-1.5">Status Inicial</Label>
+                <Label className="text-xs mb-1.5">Condição (Estoque)</Label>
                 <Select
                   value={form.stock}
                   onValueChange={(v) => set("stock", v as any)}
@@ -1732,9 +1777,8 @@ function SectionCadastro() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="livre">Disponível</SelectItem>
-                    <SelectItem value="alugado">Alugado</SelectItem>
-                    <SelectItem value="manutencao">Em Manutenção</SelectItem>
+                    <SelectItem value="livre">Ativa no Catálogo</SelectItem>
+                    <SelectItem value="manutencao">Em Manutenção / Inativa</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1910,7 +1954,9 @@ function SectionColecoes() {
     setForm({ name: "", description: "", productIds: [] });
     setEditing(null);
     setIsCreating(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  
   const openEdit = (col: SeasonalCollection) => {
     setForm({
       name: col.name,
@@ -1919,6 +1965,7 @@ function SectionColecoes() {
     });
     setEditing(col);
     setIsCreating(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleSave = async () => {
@@ -1989,14 +2036,14 @@ function SectionColecoes() {
       </div>
 
       {isCreating && (
-        <div className="bg-white rounded-xl border border-primary/30 p-6 flex flex-col gap-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">
-              {editing ? `Editando: ${editing.name}` : "Nova Coleção"}
+        <div className="bg-white rounded-xl border-2 border-primary/20 p-6 flex flex-col gap-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-base font-bold text-foreground">
+              {editing ? `A editar: ${editing.name}` : "Criar Nova Coleção"}
             </h2>
             <button
               onClick={() => setIsCreating(false)}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-red-500 bg-muted/50 p-1.5 rounded-full transition-colors"
             >
               <X size={16} />
             </button>
@@ -2004,18 +2051,18 @@ function SectionColecoes() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label className="text-xs mb-1.5">Nome da Coleção *</Label>
+              <Label className="text-xs mb-1.5 font-medium">Nome da Coleção *</Label>
               <Input
                 value={form.name}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, name: e.target.value }))
                 }
                 placeholder="Ex: Outono 2027"
-                className="h-9"
+                className="h-10 bg-secondary/10"
               />
             </div>
             <div>
-              <Label className="text-xs mb-1.5">
+              <Label className="text-xs mb-1.5 font-medium">
                 Subtítulo (exibido na home)
               </Label>
               <Input
@@ -2024,26 +2071,31 @@ function SectionColecoes() {
                   setForm((f) => ({ ...f, description: e.target.value }))
                 }
                 placeholder="Ex: Elegância para momentos únicos."
-                className="h-9"
+                className="h-10 bg-secondary/10"
               />
             </div>
           </div>
 
-          <div>
-            <Label className="text-xs mb-2">Peças desta Coleção</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-3">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs font-semibold text-primary">Selecione as peças desta coleção ({form.productIds.length} selecionadas)</Label>
+            </div>
+            
+            {/* OTIMIZAÇÃO: Usamos flex-wrap e largura fixa (w-24) para as miniaturas nunca esticarem. O items-start também impede estiramento vertical */}
+            <div className="flex flex-wrap gap-3 mt-1 max-h-[360px] overflow-y-auto items-start pr-2 custom-scrollbar border border-border/50 rounded-xl p-3 bg-muted/10">
               {products.map((p) => {
                 const selected = form.productIds.includes(p.id);
                 const coverImg =
                   p.images && p.images.length > 0
                     ? p.images[0]
-                    : "/images/vestido-aurora.jpg";
+                    : "/placeholder.jpg";
 
                 return (
                   <button
                     key={p.id}
                     onClick={() => toggleProduct(p.id)}
-                    className={`relative flex flex-col rounded-xl overflow-hidden border-2 transition-all text-left ${selected ? "border-primary shadow-sm" : "border-border hover:border-primary/40"}`}
+                    // A largura está fixada em w-24 (96px)
+                    className={`w-24 shrink-0 relative flex flex-col rounded-xl overflow-hidden border transition-all text-left ${selected ? "border-primary shadow-sm ring-2 ring-primary/20" : "border-border hover:border-primary/40 bg-white"}`}
                   >
                     <div className="relative aspect-[3/4] bg-secondary w-full">
                       <Image
@@ -2051,23 +2103,23 @@ function SectionColecoes() {
                         alt={p.name}
                         fill
                         className="object-cover object-top"
-                        sizes="160px"
+                        sizes="96px"
                       />
                       {selected && (
-                        <div className="absolute inset-0 bg-primary/10 flex items-start justify-end p-2">
+                        <div className="absolute inset-0 bg-primary/20 flex items-start justify-end p-1">
                           <CheckCircle2
                             size={16}
-                            className="text-primary bg-white rounded-full"
+                            className="text-white bg-primary rounded-full shadow-sm"
                           />
                         </div>
                       )}
                     </div>
-                    <div className="p-2.5">
-                      <p className="text-xs font-semibold text-foreground truncate">
+                    <div className="p-1.5 bg-white flex flex-col gap-0.5 border-t border-border/50">
+                      <p className="text-[10px] font-semibold text-foreground truncate" title={p.name}>
                         {p.name}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {p.sku} · {p.size}
+                      <p className="text-[8px] text-muted-foreground font-mono">
+                        {p.sku}
                       </p>
                     </div>
                   </button>
@@ -2076,23 +2128,24 @@ function SectionColecoes() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 pt-1">
+          <div className="flex items-center gap-3 pt-4 border-t border-border mt-2">
             <Button
               onClick={handleSave}
               disabled={!form.name}
-              className="gap-1.5"
+              className="gap-2 px-6"
             >
-              <Save size={14} />{" "}
+              <Save size={16} />{" "}
               {editing ? "Salvar Alterações" : "Criar Coleção"}
             </Button>
-            <Button variant="outline" onClick={() => setIsCreating(false)}>
+            <Button variant="ghost" onClick={() => setIsCreating(false)}>
               Cancelar
             </Button>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col gap-4">
+      {/* LISTA DE COLEÇÕES EXISTENTES */}
+      <div className="flex flex-col gap-5">
         {collections.map((col) => {
           const colProducts = products.filter((p) =>
             col.productIds.includes(p.id),
@@ -2100,21 +2153,21 @@ function SectionColecoes() {
           return (
             <div
               key={col.id}
-              className={`bg-white rounded-xl border overflow-hidden transition-all ${col.active ? "border-primary/40 shadow-sm" : "border-border"}`}
+              className={`bg-white rounded-xl border overflow-hidden transition-all ${col.active ? "border-primary/50 shadow-md ring-1 ring-primary/10" : "border-border shadow-sm hover:border-primary/30"}`}
             >
-              <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap border-b border-border">
+              <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap border-b border-border bg-muted/10">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-2 h-2 rounded-full shrink-0 ${col.active ? "bg-primary" : "bg-border"}`}
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${col.active ? "bg-primary animate-pulse" : "bg-border"}`}
                   />
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-foreground">
+                      <p className="text-base font-bold text-foreground">
                         {col.name}
                       </p>
                       {col.active && (
-                        <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
-                          Destaque ativo
+                        <span className="text-[10px] bg-primary text-primary-foreground font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+                          Em Destaque
                         </span>
                       )}
                     </div>
@@ -2125,78 +2178,84 @@ function SectionColecoes() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   {!col.active && (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/5"
+                      className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground transition-all"
                       onClick={() => handleAtivar(col.id)}
                     >
-                      <RadioTower size={11} /> Ativar Destaque
+                      <RadioTower size={14} /> Ativar Destaque
                     </Button>
                   )}
+                  <div className="h-4 w-px bg-border mx-1"></div>
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 w-7 p-0"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-secondary"
                     onClick={() => openEdit(col as SeasonalCollection)}
+                    title="Editar Coleção"
                   >
-                    <Pencil size={12} />
+                    <Pencil size={15} />
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 w-7 p-0 text-red-500 hover:bg-red-50"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-red-500 hover:bg-red-50"
                     onClick={() => handleApagar(col.id)}
+                    title="Apagar Coleção"
                   >
-                    <Trash2 size={12} />
+                    <Trash2 size={15} />
                   </Button>
                 </div>
               </div>
 
+              {/* VITRINE DE PEÇAS DA COLEÇÃO */}
               <div className="p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Layers size={13} className="text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground font-medium">
-                    {colProducts.length} peça
-                    {colProducts.length !== 1 ? "s" : ""}
+                <div className="flex items-center gap-2 mb-3">
+                  <Layers size={14} className="text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                    {colProducts.length} peça{colProducts.length !== 1 ? "s" : ""} na coleção
                   </span>
                 </div>
-                <div className="flex gap-3 overflow-x-auto pb-1">
-                  {colProducts.map((p) => {
-                    const coverImg =
-                      p.images && p.images.length > 0
-                        ? p.images[0]
-                        : "/images/vestido-aurora.jpg";
-                    return (
-                      <div
-                        key={p.id}
-                        className="shrink-0 w-36 flex flex-col rounded-lg overflow-hidden border border-border"
-                      >
-                        <div className="relative aspect-[3/4] bg-secondary">
-                          <Image
-                            src={coverImg}
-                            alt={p.name}
-                            fill
-                            className="object-cover object-top"
-                            sizes="144px"
-                          />
-                        </div>
-                        <div className="p-2.5 flex flex-col gap-1.5">
-                          <div>
-                            <p className="text-xs font-semibold text-foreground truncate">
+                
+                {colProducts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic bg-secondary/20 p-4 rounded-lg border border-dashed border-border text-center">Coleção vazia. Clique no botão de edição para adicionar vestidos.</p>
+                ) : (
+                  <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+                    {colProducts.map((p) => {
+                      const coverImg =
+                        p.images && p.images.length > 0
+                          ? p.images[0]
+                          : "/placeholder.jpg";
+                      return (
+                        <div
+                          key={p.id}
+                          className="shrink-0 w-28 flex flex-col rounded-lg overflow-hidden border border-border shadow-sm hover:shadow-md transition-shadow bg-white"
+                        >
+                          <div className="relative aspect-[3/4] bg-secondary">
+                            <Image
+                              src={coverImg}
+                              alt={p.name}
+                              fill
+                              className="object-cover object-top"
+                              sizes="112px"
+                            />
+                          </div>
+                          <div className="p-2 flex flex-col gap-0.5 text-center">
+                            <p className="text-[11px] font-semibold text-foreground truncate" title={p.name}>
                               {p.name}
                             </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {p.sku} · T{p.size}
+                            <p className="text-[9px] text-muted-foreground font-mono">
+                              {p.sku}
                             </p>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -2205,7 +2264,6 @@ function SectionColecoes() {
     </div>
   );
 }
-
 // ─── CATEGORIAS ───────────────────────────────────────────────────────────────
 function SectionCategorias() {
   const { categories, setCategories } = useAdminStore();
