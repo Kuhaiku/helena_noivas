@@ -1523,92 +1523,90 @@ function SectionConfiguracoes() {
 
 // ─── ESTOQUE ──────────────────────────────────────────────────────────────
 function SectionEstoque() {
-  const {
-    catalog,
-    products,
-    deleteProduct,
-    setEditingProduct,
-    setSection,
-    setCollections,
-    updateProduct,
-  } = useAdminStore();
-  const itensParaMostrar = products.length > 0 ? products : catalog;
+  const { catalog, products, deleteProduct, setEditingProduct, setSection, setCollections, updateProduct, orders, storeConfig } = useAdminStore()
+  const itensParaMostrar = products.length > 0 ? products : catalog
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("todos");
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("todos")
 
   const filteredItems = itensParaMostrar.filter((item: any) => {
-    const matchSearch =
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = statusFilter === "todos" || item.stock === statusFilter;
-    return matchSearch && matchStatus;
-  });
+    const matchSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.sku.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchStatus = statusFilter === "todos" || item.stock === statusFilter
+    return matchSearch && matchStatus
+  })
 
   const handleDelete = async (id: string) => {
     if (!confirm("Tem certeza que deseja apagar esta peça do estoque?")) return;
     try {
-      const response = await fetch(`/api/produtos?id=${id}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(`/api/produtos?id=${id}`, { method: 'DELETE' });
       const result = await response.json();
       if (result.success) {
         deleteProduct(id);
-        const resCol = await fetch("/api/colecoes");
+        const resCol = await fetch('/api/colecoes');
         if (resCol.ok) setCollections(await resCol.json());
-      } else alert("Erro ao apagar no banco de dados.");
+      }
+      else alert("Erro ao apagar no banco de dados.");
     } catch (error) {
       alert("Erro de conexão com a API.");
     }
-  };
+  }
 
-  // Agora esta função serve apenas para tirar da Manutenção e voltar para a Vitrine
   const handleAtivarPeca = async (id: string) => {
     try {
       const res = await fetch(`/api/produtos?id=${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stock: "livre" }),
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock: 'livre' })
       });
       if (res.ok) {
-        updateProduct(id, { stock: "livre" });
+        updateProduct(id, { stock: 'livre' });
       } else {
         alert("Erro ao atualizar o status da peça.");
       }
     } catch (error) {
       alert("Erro de conexão.");
     }
-  };
+  }
+
+  // ── MÁGICA: Calcular quantidade disponível HOJE ──
+  const unavailableCounts = new Map<string, number>()
+  if (storeConfig) {
+    const todayStr = new Date().toISOString().split('T')[0]
+    const targetTime = new Date(todayStr + "T12:00:00").getTime()
+
+    orders.forEach(o => {
+      if (o.status !== 'confirmado' && o.status !== 'em_uso') return
+      if (!o.eventoDate) return
+
+      const eventTime = new Date(o.eventoDate + "T12:00:00").getTime()
+      const diffDays = Math.round((targetTime - eventTime) / (1000 * 60 * 60 * 24))
+
+      const windowBefore = storeConfig.windowBefore !== undefined ? Number(storeConfig.windowBefore) : 3
+      const windowAfter = storeConfig.windowAfter !== undefined ? Number(storeConfig.windowAfter) : 3
+
+      if (diffDays >= -windowBefore && diffDays <= windowAfter) {
+        o.items.forEach((item: any) => {
+          const idStr = item.id.toString()
+          const currentCount = unavailableCounts.get(idStr) || 0
+          unavailableCounts.set(idStr, currentCount + 1)
+        })
+      }
+    })
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            Catálogo & Inventário
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {itensParaMostrar.length} peças cadastradas na loja
-          </p>
+          <h1 className="text-xl font-semibold text-foreground">Catálogo & Inventário</h1>
+          <p className="text-sm text-muted-foreground">{itensParaMostrar.length} peças cadastradas na loja</p>
         </div>
-        <Button
-          size="sm"
-          className="gap-1.5"
-          onClick={() => {
-            setEditingProduct(null);
-            setSection("cadastro");
-          }}
-        >
-          <Plus size={14} /> Nova Peça
-        </Button>
+        <Button size="sm" className="gap-1.5" onClick={() => { setEditingProduct(null); setSection("cadastro"); }}><Plus size={14} /> Nova Peça</Button>
       </div>
 
       <div className="flex gap-3 flex-wrap items-center bg-white border border-border rounded-xl p-4 shadow-sm">
         <div className="relative flex-1 min-w-[200px]">
-          <Search
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar por nome ou SKU..."
             value={searchTerm}
@@ -1627,15 +1625,7 @@ function SectionEstoque() {
           </SelectContent>
         </Select>
         {(searchTerm || statusFilter !== "todos") && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 text-xs text-muted-foreground"
-            onClick={() => {
-              setSearchTerm("");
-              setStatusFilter("todos");
-            }}
-          >
+          <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchTerm(""); setStatusFilter("todos"); }}>
             Limpar Filtros
           </Button>
         )}
@@ -1646,60 +1636,49 @@ function SectionEstoque() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Peça
-                </th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  SKU
-                </th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Tamanho
-                </th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Condição Física
-                </th>
-                <th className="text-right px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Ações
-                </th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Peça</th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">SKU</th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tamanho</th>
+                <th className="text-center px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Estoque</th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Condição Física</th>
+                <th className="text-right px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ações</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.map((item: any) => {
                 const imgSrc = item.images?.[0] || item.image;
-                const finalImg =
-                  typeof imgSrc === "string" && imgSrc.trim() !== ""
-                    ? imgSrc
-                    : "/placeholder.jpg";
+                const finalImg = (typeof imgSrc === 'string' && imgSrc.trim() !== '') ? imgSrc : "/placeholder.jpg";
+
+                const qtyTotal = Number(item.quantity) || 1;
+                const qtyUnavailable = unavailableCounts.get(item.id.toString()) || 0;
+                const qtyAvailable = Math.max(0, qtyTotal - qtyUnavailable);
 
                 return (
-                  <tr
-                    key={item.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
-                  >
+                  <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         <div className="relative w-10 h-12 rounded-md overflow-hidden bg-secondary shrink-0 border border-border/50">
-                          <Image
-                            src={finalImg}
-                            alt={item.name}
-                            fill
-                            className="object-cover"
-                            sizes="40px"
-                          />
+                          <Image src={finalImg} alt={item.name} fill className="object-cover" sizes="40px" />
                         </div>
-                        <span className="font-medium text-foreground">
-                          {item.name}
-                        </span>
+                        <span className="font-medium text-foreground">{item.name}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
-                      {item.sku}
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">
-                      {item.size}
+                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{item.sku}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{item.size}</td>
+                    <td className="px-5 py-3 text-center">
+                      <div className="flex flex-col items-center justify-center gap-1">
+                        <span className="text-sm font-bold text-foreground">
+                          {qtyAvailable} <span className="text-xs text-muted-foreground font-normal">/ {qtyTotal} livres</span>
+                        </span>
+                        {qtyUnavailable > 0 && (
+                           <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-medium leading-none">
+                             {qtyUnavailable} em uso/preparo
+                           </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-3">
-                      {item.stock === "manutencao" ? (
+                      {item.stock === 'manutencao' ? (
                         <span className="bg-red-50 text-red-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center w-fit gap-1">
                           <AlertCircle size={12} /> Inativo/Manutenção
                         </span>
@@ -1710,11 +1689,12 @@ function SectionEstoque() {
                       )}
                     </td>
                     <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
-                      {item.stock === "manutencao" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      
+                      {item.stock === 'manutencao' && (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-7 text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50" 
                           onClick={() => handleAtivarPeca(item.id)}
                           title="Devolver para o Catálogo"
                         >
@@ -1722,49 +1702,24 @@ function SectionEstoque() {
                         </Button>
                       )}
 
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                        onClick={() => {
-                          setEditingProduct(item);
-                          setSection("cadastro");
-                        }}
-                        title="Editar Peça"
-                      >
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-colors" onClick={() => { setEditingProduct(item); setSection("cadastro") }} title="Editar Peça">
                         <Pencil size={14} />
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
-                        onClick={() => handleDelete(item.id)}
-                        title="Apagar Peça"
-                      >
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors" onClick={() => handleDelete(item.id)} title="Apagar Peça">
                         <Trash2 size={14} />
                       </Button>
                     </td>
                   </tr>
-                );
+                )
               })}
-              {filteredItems.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-5 py-10 text-center text-sm text-muted-foreground"
-                  >
-                    Nenhuma peça encontrada com estes filtros.
-                  </td>
-                </tr>
-              )}
+              {filteredItems.length === 0 && <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhuma peça encontrada com estes filtros.</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
     </div>
-  );
+  )
 }
-
 // ─── CADASTRO DE PRODUTO (COMPLETO) ───────────────────────────────────────────
 function SectionCadastro() {
   const {
