@@ -8,7 +8,8 @@ import { useCartStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, CheckCircle2, MessageCircle, ArrowLeft, AlertCircle } from "lucide-react"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Trash2, CheckCircle2, MessageCircle, ArrowLeft, AlertCircle, CalendarClock } from "lucide-react"
 
 export default function CheckoutPage() {
   const { items, removeItem, clearCart } = useCartStore()
@@ -17,12 +18,20 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [orderId, setOrderId] = useState("")
+  
   const [form, setForm] = useState({ name: "", phone: "", email: "", date: "", time: "" })
   
   const [config, setConfig] = useState<any>(null)
   const [pedidosRegistados, setPedidosRegistados] = useState<any[]>([])
   const [availableSlots, setAvailableSlots] = useState<{time: string, available: boolean}[]>([])
   const [dbError, setDbError] = useState(false) 
+  
+  // ESTADOS DO NOVO POP-UP
+  const [conflictModalOpen, setConflictModalOpen] = useState(false)
+  const [suggestedDate, setSuggestedDate] = useState<{dateStr: string, formatted: string} | null>(null)
+  const [suggestedSlots, setSuggestedSlots] = useState<{time: string, available: boolean}[]>([])
+  const [suggestedTime, setSuggestedTime] = useState("")
+  const [isSubmittingModal, setIsSubmittingModal] = useState(false)
 
   useEffect(() => {
     fetch('/api/configuracoes').then(res => res.json()).then(data => {
@@ -30,6 +39,7 @@ export default function CheckoutPage() {
     }).catch(console.error)
   }, [])
 
+  // Verifica a disponibilidade da agenda da loja (Provadores)
   useEffect(() => {
     if (form.date) {
       setDbError(false)
@@ -49,28 +59,21 @@ export default function CheckoutPage() {
     }
   }, [form.date])
 
-  useEffect(() => {
-    if (dbError || !form.date || !config?.businessHours) {
-      setAvailableSlots([])
-      return
-    }
-
-    const [y, m, d] = form.date.split('-')
+  // FUNÇÃO REUTILIZÁVEL: Calcula horários para qualquer data (Formulário ou Pop-up)
+  const getSlotsForDate = (dateStr: string) => {
+    if (!config?.businessHours) return []
+    const [y, m, d] = dateStr.split('-')
     const dateObj = new Date(Number(y), Number(m) - 1, Number(d))
     const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
     const dayName = days[dateObj.getDay()]
 
     const dayConfig = config.businessHours.find((b: any) => b.dia === dayName)
 
-    if (!dayConfig || !dayConfig.isOpen) {
-      setAvailableSlots([])
-      setForm(prev => ({ ...prev, time: "" }))
-      return
-    }
+    if (!dayConfig || !dayConfig.isOpen) return []
 
     const contagemPorHora: Record<string, number> = {}
     pedidosRegistados.forEach(p => {
-      if (p.provaDate === form.date && p.status !== 'cancelado') {
+      if (p.provaDate === dateStr && p.status !== 'cancelado') {
         contagemPorHora[p.provaTime] = (contagemPorHora[p.provaTime] || 0) + 1
       }
     })
@@ -87,9 +90,53 @@ export default function CheckoutPage() {
       currentHour++
     }
     
-    setAvailableSlots(slots)
+    return slots
+  }
+
+  // Preenche os horários do formulário principal
+  useEffect(() => {
+    if (dbError || !form.date || !config?.businessHours) {
+      setAvailableSlots([])
+      return
+    }
+    setAvailableSlots(getSlotsForDate(form.date))
     setForm(prev => ({ ...prev, time: "" })) 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.date, config, pedidosRegistados, dbError])
+
+  // FUNÇÃO REUTILIZÁVEL: Salva o pedido final (Usada no Formulário e no Pop-up)
+  const registrarPedido = async (dateToSave: string, timeToSave: string) => {
+    const simplifiedItems = items.map(item => ({
+      id: item.id,
+      name: item.name,
+      sku: item.sku,
+      size: item.size
+    }))
+
+    const res = await fetch('/api/pedidos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientName: form.name,
+        clientPhone: form.phone,
+        clientEmail: form.email,
+        provaDate: dateToSave,
+        provaTime: timeToSave,
+        totalValue: 0,  
+        items: simplifiedItems
+      })
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      setOrderId(data.id) 
+      setStep(2)          
+      clearCart()
+      setConflictModalOpen(false)         
+    } else {
+      alert("Erro ao salvar o agendamento.")
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,40 +145,72 @@ export default function CheckoutPage() {
     
     setLoading(true)
 
-    // OTIMIZAÇÃO: Enviamos apenas os IDs e os nomes básicos, não o objeto completo
-    const simplifiedItems = items.map(item => ({
-      id: item.id,
-      name: item.name,
-      sku: item.sku,
-      size: item.size
-    }))
-
     try {
-      const res = await fetch('/api/pedidos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientName: form.name,
-          clientPhone: form.phone,
-          clientEmail: form.email,
-          provaDate: form.date,
-          provaTime: form.time,
-          eventoDate: "", 
-          totalValue: 0,  
-          items: simplifiedItems
-        })
-      })
+      const cartBlockedDates = new Set<string>()
+      let hasConflict = false
 
-      if (res.ok) {
-        const data = await res.json()
-        setOrderId(data.id) 
-        setStep(2)          
-        clearCart()         
-      } else {
-        alert("Erro ao salvar o agendamento.")
+      // 1. Coleta as datas bloqueadas de TODOS os vestidos
+      for (const item of items) {
+        const res = await fetch(`/api/disponibilidade?produtoId=${item.id}&t=${Date.now()}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.blockedDates) {
+            data.blockedDates.forEach((d: string) => cartBlockedDates.add(d))
+            if (form.date && data.blockedDates.includes(form.date)) {
+              hasConflict = true
+            }
+          }
+        }
       }
+
+      // 2. SE HOUVER CONFLITO: Procura o próximo dia útil com horários vagos
+      if (hasConflict) {
+        let checkDate = new Date(form.date + "T12:00:00")
+        checkDate.setDate(checkDate.getDate() + 1) 
+        let maxLookahead = 45 
+        let foundDateStr = null
+        let formattedStr = null
+        let foundSlots: {time: string, available: boolean}[] = []
+
+        const diasSemana = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
+
+        while (maxLookahead > 0) {
+          const dateStr = checkDate.toISOString().split('T')[0]
+          const dayIndex = checkDate.getDay()
+          const dayName = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][dayIndex]
+          
+          const dayConfig = config?.businessHours?.find((b: any) => b.dia === dayName)
+          const isOpen = dayConfig ? dayConfig.isOpen : (dayIndex !== 0) 
+
+          // Se as peças estão livres e a loja está aberta...
+          if (!cartBlockedDates.has(dateStr) && isOpen) {
+            const slotsForThisDay = getSlotsForDate(dateStr)
+            
+            // Verifica se REALMENTE tem horário na agenda
+            if (slotsForThisDay.some(s => s.available)) {
+              foundDateStr = dateStr
+              formattedStr = `dia ${checkDate.getDate()} (${diasSemana[dayIndex]})`
+              foundSlots = slotsForThisDay
+              break
+            }
+          }
+          checkDate.setDate(checkDate.getDate() + 1)
+          maxLookahead--
+        }
+
+        setSuggestedDate(foundDateStr ? { dateStr: foundDateStr, formatted: formattedStr! } : null)
+        setSuggestedSlots(foundSlots)
+        setSuggestedTime("") // Limpa qualquer horário antigo
+        setConflictModalOpen(true)
+        setLoading(false)
+        return // Para a execução (Não salva)
+      }
+
+      // 3. SE ESTIVER TUDO LIVRE, SALVA O AGENDAMENTO NORMAL
+      await registrarPedido(form.date, form.time)
+      
     } catch (error) {
-      alert("Ocorreu um erro ao finalizar o agendamento.")
+      alert("Ocorreu um erro ao verificar a disponibilidade.")
     } finally {
       setLoading(false)
     }
@@ -218,10 +297,10 @@ export default function CheckoutPage() {
 
             <div className="border-t border-border mt-2 pt-5">
               <Label className="text-xs mb-1.5 font-medium block text-primary">Data da Prova na Loja *</Label>
-              <Input required type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="h-11 bg-secondary/20 w-full sm:w-1/2" />
+              <Input required type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="h-11 bg-secondary/20 w-full" />
             </div>
 
-            <div className="border border-border p-4 rounded-xl bg-secondary/10">
+            <div className="border border-border p-4 rounded-xl bg-secondary/10 mt-2">
               <Label className="text-xs mb-3 block font-medium">Horário da Prova *</Label>
               
               {!form.date ? (
@@ -258,13 +337,81 @@ export default function CheckoutPage() {
 
             <div className="border-t border-border mt-2 pt-6">
               <Button type="submit" disabled={loading || items.length === 0 || !form.time || dbError} className="w-full h-14 text-base font-semibold rounded-xl">
-                {loading ? "A processar..." : "Confirmar Agendamento"}
+                {loading ? "A verificar disponibilidade..." : "Confirmar Agendamento"}
               </Button>
             </div>
           </form>
         </div>
-
       </main>
+
+      {/* ── MODAL / POP-UP DE SUGESTÃO DE DATA E HORÁRIOS ── */}
+      <Dialog open={conflictModalOpen} onOpenChange={setConflictModalOpen}>
+        <DialogContent className="max-w-md text-center p-8 rounded-3xl">
+          <div className="w-20 h-20 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
+            <CalendarClock size={36} strokeWidth={1.5} />
+          </div>
+          <DialogTitle className="text-2xl font-serif text-foreground mb-3">Data Indisponível</DialogTitle>
+          <p className="text-muted-foreground leading-relaxed">
+            Poxa, pelo menos um dos vestidos que escolheu não estará na loja no dia {form.date.split('-').reverse().join('/')}.
+          </p>
+          
+          {suggestedDate ? (
+            <div className="mt-5 text-left border border-border bg-secondary/10 p-5 rounded-2xl shadow-sm">
+              <p className="text-sm text-foreground font-medium mb-4 text-center">
+                Mas as peças estarão livres no <strong className="text-primary">{suggestedDate.formatted}</strong>!
+              </p>
+              
+              <Label className="text-xs mb-3 block font-medium">Escolha um horário para este dia:</Label>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                {suggestedSlots.map(slot => (
+                  <button
+                    type="button"
+                    key={slot.time}
+                    disabled={!slot.available}
+                    onClick={() => setSuggestedTime(slot.time)}
+                    className={`py-2 rounded-lg text-sm font-medium transition-all border ${
+                      !slot.available 
+                        ? "bg-muted text-muted-foreground border-border opacity-50 cursor-not-allowed line-through" 
+                        : suggestedTime === slot.time
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : "bg-white text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                    }`}
+                  >
+                    {slot.time}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="block mt-4 text-foreground font-medium">
+              Por favor, tente agendar para a próxima semana ou altere as peças da sacola.
+            </p>
+          )}
+          
+          <div className="flex flex-col gap-3 w-full mt-6">
+            {suggestedDate && (
+              <Button 
+                onClick={async () => {
+                  setIsSubmittingModal(true)
+                  await registrarPedido(suggestedDate.dateStr, suggestedTime)
+                  setIsSubmittingModal(false)
+                }} 
+                disabled={!suggestedTime || isSubmittingModal}
+                className="w-full h-14 text-base font-semibold rounded-xl shadow-md"
+              >
+                {isSubmittingModal ? "A agendar..." : "Confirmar neste horário"}
+              </Button>
+            )}
+            <Button 
+              variant="outline" 
+              onClick={() => setConflictModalOpen(false)} 
+              className="w-full h-14 text-sm font-medium rounded-xl border-border hover:bg-secondary"
+            >
+              Não, vou escolher outros vestidos disponíveis
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

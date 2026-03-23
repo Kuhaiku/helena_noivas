@@ -51,6 +51,7 @@ export function ModalFechamento() {
   const remaining = grandTotal - signalPaid
 
   const handleConfirm = async () => {
+    // 1. Obriga a preencher a data do evento para poder bloquear
     if (!eventoDate) {
       setBlockedErrors(["A Data do Casamento/Evento é obrigatória para fechar o contrato."])
       return
@@ -61,30 +62,30 @@ export function ModalFechamento() {
     const errosEncontrados: string[] = []
 
     try {
-      // Usamos um timestamp (?t=Date.now) para o navegador NUNCA usar cache nesta chamada
+      // 2. Bate na API para cada peça do contrato para ver se está livre
+      // O "?t=Date.now()" impede que o navegador use cache, garantindo o resultado real na hora
       for (const item of selectedOrder.items) {
         const res = await fetch(`/api/disponibilidade?produtoId=${item.id}&t=${Date.now()}`)
         
         if (res.ok) {
           const data = await res.json()
           if (data.error) {
-            errosEncontrados.push(`Erro no sistema ao verificar o vestido ${item.sku}: ${data.error}`)
+            errosEncontrados.push(`Erro ao verificar a peça ${item.sku}.`)
           } else if (data.blockedDates && data.blockedDates.includes(eventoDate)) {
-            errosEncontrados.push(`O vestido "${item.name}" (${item.sku}) não tem estoque livre para o dia ${eventoDate.split('-').reverse().join('/')}.`)
+            // SE A DATA ESTIVER NOS DIAS BLOQUEADOS DA PEÇA:
+            errosEncontrados.push(`A peça "${item.name}" (${item.sku}) já está alugada para o dia ${eventoDate.split('-').reverse().join('/')}.`)
           }
-        } else {
-          errosEncontrados.push(`Falha de comunicação com o servidor ao verificar a peça: ${item.name}.`)
         }
       }
 
-      // SE HOUVER CONFLITO, BLOQUEIA TUDO!
+      // 3. SE HOUVER CONFLITO, BLOQUEIA TUDO E MOSTRA O ERRO!
       if (errosEncontrados.length > 0) {
         setBlockedErrors(errosEncontrados)
         setIsChecking(false)
         return 
       }
 
-      // SE ESTIVER TUDO LIVRE, PROCEDE COM O FECHAMENTO
+      // 4. SE ESTIVER TUDO LIVRE, SALVA NO BANCO E FECHA O CONTRATO
       const dadosAtualizados = {
         ...selectedOrder,
         eventoDate,
@@ -96,14 +97,14 @@ export function ModalFechamento() {
         status: "confirmado"
       }
 
-      // Atualiza o banco de dados
+      // Salva no banco de dados MySQL
       await fetch(`/api/pedidos?id=${selectedOrder.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dadosAtualizados)
       })
 
-      // Atualiza o estado visual
+      // Atualiza o Zustand (Frontend)
       updateOrderFinancial(selectedOrder.id, dadosAtualizados as any)
       updateOrderStatus(selectedOrder.id, "confirmado")
       setFinancialModalOpen(false)
@@ -126,7 +127,7 @@ export function ModalFechamento() {
           <p className="text-xs text-muted-foreground">{selectedOrder.clientName}</p>
         </DialogHeader>
 
-        {/* ALERTA DE BLOQUEIO (MOTOR MATEMÁTICO) */}
+        {/* ── ALERTA DE BLOQUEIO (MOTOR MATEMÁTICO) ── */}
         {blockedErrors.length > 0 && (
           <div className="bg-red-50 border border-red-200 p-3 rounded-lg flex flex-col gap-1.5 animate-in fade-in zoom-in-95">
             <div className="flex items-center gap-2 text-red-700 font-bold text-xs uppercase tracking-wider">
@@ -180,6 +181,7 @@ export function ModalFechamento() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
+              {/* ── CAMPO OBRIGATÓRIO: DATA DO CASAMENTO ── */}
               <Label className="text-xs mb-1.5 text-primary font-bold">Data do Evento *</Label>
               <Input
                 type="date"

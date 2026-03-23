@@ -57,10 +57,9 @@ import {
   Search,
   Unlock,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
 } from "lucide-react";
 import type { Product, SeasonalCollection, Category } from "@/lib/admin-store";
-
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 function SectionDashboard() {
@@ -540,7 +539,6 @@ function SectionPedidos() {
   );
 }
 
-
 // ─── ABA DE LOGÍSTICA & GIRO DE PEÇAS ──────────────────────────────────────────
 function SectionContratos() {
   const { orders, updateOrderStatus, updateProduct } = useAdminStore();
@@ -551,31 +549,45 @@ function SectionContratos() {
     .sort((a, b) => (a.eventoDate || "").localeCompare(b.eventoDate || ""));
 
   // MÁGICA: Transformamos os contratos numa lista plana de PEÇAS ALUGADAS
-  const pecasNaRua = contratos.flatMap((order) =>
-    order.items.map((item) => ({
-      ...item,
-      orderId: order.id,
-      clientName: order.clientName,
-      clientPhone: order.clientPhone,
-      eventoDate: order.eventoDate,
-      status: order.status,
-      orderRaw: order,
-    }))
-  ).sort((a, b) => (a.eventoDate || "").localeCompare(b.eventoDate || ""));
+  const pecasNaRua = contratos
+    .flatMap((order) =>
+      order.items.map((item) => ({
+        ...item,
+        orderId: order.id,
+        clientName: order.clientName,
+        clientPhone: order.clientPhone,
+        eventoDate: order.eventoDate,
+        status: order.status,
+        orderRaw: order,
+      })),
+    )
+    .sort((a, b) => (a.eventoDate || "").localeCompare(b.eventoDate || ""));
 
   const [devolvendo, setDevolvendo] = useState<any>(null);
-  const [devolucaoStatus, setDevolucaoStatus] = useState<"livre" | "manutencao">("livre");
+  const [devolucaoStatus, setDevolucaoStatus] = useState<
+    "livre" | "manutencao"
+  >("livre");
   const [multa, setMulta] = useState(0);
-  
+
   // ESTADO PARA CONTROLAR A LINHA EXPANDIDA (O COMPROVANTE)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const registrarRetirada = async (order: any) => {
     const pendente = order.totalValue - (order.signalPaid || 0);
     if (pendente > 0) {
-      if (!confirm(`ATENÇÃO! A cliente ainda deve R$ ${pendente.toFixed(2)}. Tem certeza que deseja liberar os vestidos sem registrar o pagamento?`)) return;
+      if (
+        !confirm(
+          `ATENÇÃO! A cliente ainda deve R$ ${pendente.toFixed(2)}. Tem certeza que deseja liberar os vestidos sem registrar o pagamento?`,
+        )
+      )
+        return;
     } else {
-      if (!confirm("Confirmar a retirada das peças pela cliente? O status mudará para 'Em Uso'.")) return;
+      if (
+        !confirm(
+          "Confirmar a retirada das peças pela cliente? O status mudará para 'Em Uso'.",
+        )
+      )
+        return;
     }
 
     const res = await fetch(`/api/pedidos?id=${order.id}`, {
@@ -646,26 +658,45 @@ function SectionContratos() {
 
       <Tabs defaultValue="contratos" className="w-full flex flex-col gap-5">
         <TabsList className="w-fit bg-white border border-border shadow-sm h-11 px-1">
-          <TabsTrigger value="contratos" className="gap-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+          <TabsTrigger
+            value="contratos"
+            className="gap-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg"
+          >
             <ClipboardList size={14} /> Visão por Contratos
           </TabsTrigger>
-          <TabsTrigger value="pecas" className="gap-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg">
+          <TabsTrigger
+            value="pecas"
+            className="gap-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg"
+          >
             <Layers size={14} /> Giro de Peças Individuais
           </TabsTrigger>
         </TabsList>
 
         {/* ── VISÃO 1: CONTRATOS COM EXPANSÃO (COMPROVANTE) ── */}
-        <TabsContent value="contratos" className="m-0 focus-visible:outline-none">
+        <TabsContent
+          value="contratos"
+          className="m-0 focus-visible:outline-none"
+        >
           <div className="bg-white rounded-xl border border-border overflow-hidden shadow-sm">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40">
                   <th className="w-10 px-3 py-3 text-center"></th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase">ID</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Cliente</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Casamento</th>
-                  <th className="text-center px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Ações</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase">
+                    ID
+                  </th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">
+                    Cliente
+                  </th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">
+                    Casamento
+                  </th>
+                  <th className="text-center px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">
+                    Status
+                  </th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">
+                    Ações
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -675,45 +706,101 @@ function SectionContratos() {
 
                   return (
                     <Fragment key={order.id}>
-                      <tr 
-                        className={`border-b border-border hover:bg-muted/30 transition-colors ${isExpanded ? 'bg-muted/10' : ''}`}
+                      <tr
+                        className={`border-b border-border hover:bg-muted/30 transition-colors ${isExpanded ? "bg-muted/10" : ""}`}
                       >
-                        <td className="px-3 py-4 text-center cursor-pointer" onClick={() => toggleExpand(order.id)}>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-primary/10 hover:text-primary">
-                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        <td
+                          className="px-3 py-4 text-center cursor-pointer"
+                          onClick={() => toggleExpand(order.id)}
+                        >
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-primary/10 hover:text-primary"
+                          >
+                            {isExpanded ? (
+                              <ChevronUp size={16} />
+                            ) : (
+                              <ChevronDown size={16} />
+                            )}
                           </Button>
                         </td>
-                        <td className="px-3 py-4 font-mono text-xs text-muted-foreground cursor-pointer" onClick={() => toggleExpand(order.id)}>
+                        <td
+                          className="px-3 py-4 font-mono text-xs text-muted-foreground cursor-pointer"
+                          onClick={() => toggleExpand(order.id)}
+                        >
                           {order.id}
                         </td>
-                        <td className="px-5 py-4 cursor-pointer" onClick={() => toggleExpand(order.id)}>
-                          <p className="font-medium text-foreground">{order.clientName}</p>
+                        <td
+                          className="px-5 py-4 cursor-pointer"
+                          onClick={() => toggleExpand(order.id)}
+                        >
+                          <p className="font-medium text-foreground">
+                            {order.clientName}
+                          </p>
                           {pendente > 0 ? (
-                            <span className="text-[10px] text-red-600 font-bold">Deve R$ {pendente.toFixed(2)}</span>
+                            <span className="text-[10px] text-red-600 font-bold">
+                              Deve R$ {pendente.toFixed(2)}
+                            </span>
                           ) : (
-                            <span className="text-[10px] text-emerald-600 font-bold">Total Pago</span>
+                            <span className="text-[10px] text-emerald-600 font-bold">
+                              Total Pago
+                            </span>
                           )}
                         </td>
-                        <td className="px-5 py-4 font-medium cursor-pointer" onClick={() => toggleExpand(order.id)}>
-                          {order.eventoDate ? order.eventoDate.split("-").reverse().join("/") : "-"}
+                        <td
+                          className="px-5 py-4 font-medium cursor-pointer"
+                          onClick={() => toggleExpand(order.id)}
+                        >
+                          {order.eventoDate
+                            ? order.eventoDate.split("-").reverse().join("/")
+                            : "-"}
                         </td>
-                        <td className="px-5 py-4 text-center cursor-pointer" onClick={() => toggleExpand(order.id)}>
-                          {order.status === "confirmado" && <span className="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">Aguardando Retirada</span>}
-                          {order.status === "em_uso" && <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">Em Uso pela Cliente</span>}
+                        <td
+                          className="px-5 py-4 text-center cursor-pointer"
+                          onClick={() => toggleExpand(order.id)}
+                        >
+                          {order.status === "confirmado" && (
+                            <span className="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                              Aguardando Retirada
+                            </span>
+                          )}
+                          {order.status === "em_uso" && (
+                            <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                              Em Uso pela Cliente
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { window.location.href = `/admin/contrato/${order.id}`; }}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                window.location.href = `/admin/contrato/${order.id}`;
+                              }}
+                            >
                               <FileText size={14} className="mr-1.5" /> PDF
                             </Button>
                             {order.status === "confirmado" && (
-                              <Button size="sm" className="h-8 text-xs bg-primary" onClick={() => registrarRetirada(order)}>
-                                <PackageCheck size={14} className="mr-1.5" /> Liberar Retirada
+                              <Button
+                                size="sm"
+                                className="h-8 text-xs bg-primary"
+                                onClick={() => registrarRetirada(order)}
+                              >
+                                <PackageCheck size={14} className="mr-1.5" />{" "}
+                                Liberar Retirada
                               </Button>
                             )}
                             {order.status === "em_uso" && (
-                              <Button size="sm" className="h-8 text-xs bg-amber-600 hover:bg-amber-700" onClick={() => setDevolvendo(order)}>
-                                <PackageOpen size={14} className="mr-1.5" /> Receber Devolução
+                              <Button
+                                size="sm"
+                                className="h-8 text-xs bg-amber-600 hover:bg-amber-700"
+                                onClick={() => setDevolvendo(order)}
+                              >
+                                <PackageOpen size={14} className="mr-1.5" />{" "}
+                                Receber Devolução
                               </Button>
                             )}
                           </div>
@@ -727,30 +814,61 @@ function SectionContratos() {
                             <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
                               <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
                                 <h3 className="font-semibold text-foreground flex items-center gap-2">
-                                  <Layers size={16} className="text-primary"/> Comprovante de Peças ({order.items?.length || 0})
+                                  <Layers size={16} className="text-primary" />{" "}
+                                  Comprovante de Peças (
+                                  {order.items?.length || 0})
                                 </h3>
                                 <div className="text-right">
-                                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">Valor Total do Contrato</p>
-                                  <p className="text-lg font-bold text-primary">R$ {(order.totalValue || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
+                                    Valor Total do Contrato
+                                  </p>
+                                  <p className="text-lg font-bold text-primary">
+                                    R${" "}
+                                    {(order.totalValue || 0).toLocaleString(
+                                      "pt-BR",
+                                      { minimumFractionDigits: 2 },
+                                    )}
+                                  </p>
                                 </div>
                               </div>
-                              
+
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {order.items?.map((item: any, idx: number) => {
-                                  const imgSrc = item.image || "/placeholder.jpg";
+                                  const imgSrc =
+                                    item.image || "/placeholder.jpg";
                                   return (
-                                    <div key={idx} className="flex gap-4 p-3 rounded-lg border border-border/60 hover:border-primary/30 transition-colors bg-secondary/5">
+                                    <div
+                                      key={idx}
+                                      className="flex gap-4 p-3 rounded-lg border border-border/60 hover:border-primary/30 transition-colors bg-secondary/5"
+                                    >
                                       <div className="relative w-16 h-20 rounded-md overflow-hidden shrink-0 border border-border">
-                                        <Image src={imgSrc} alt={item.name} fill className="object-cover object-top" sizes="64px" />
+                                        <Image
+                                          src={imgSrc}
+                                          alt={item.name}
+                                          fill
+                                          className="object-cover object-top"
+                                          sizes="64px"
+                                        />
                                       </div>
                                       <div className="flex flex-col justify-center flex-1">
-                                        <p className="text-sm font-semibold text-foreground line-clamp-1" title={item.name}>{item.name}</p>
+                                        <p
+                                          className="text-sm font-semibold text-foreground line-clamp-1"
+                                          title={item.name}
+                                        >
+                                          {item.name}
+                                        </p>
                                         <div className="flex gap-2 text-xs text-muted-foreground mt-1 mb-2 font-mono bg-white w-fit px-1.5 py-0.5 rounded border border-border/50">
                                           <span>{item.sku}</span>
                                           <span>|</span>
                                           <span>Tam: {item.size}</span>
                                         </div>
-                                        <p className="text-xs font-medium text-emerald-600">R$ {(item.price || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                        <p className="text-xs font-medium text-emerald-600">
+                                          R${" "}
+                                          {(item.price || 0).toLocaleString(
+                                            "pt-BR",
+                                            { minimumFractionDigits: 2 },
+                                          )}
+                                        </p>
                                       </div>
                                     </div>
                                   );
@@ -764,7 +882,14 @@ function SectionContratos() {
                   );
                 })}
                 {contratos.length === 0 && (
-                  <tr><td colSpan={6} className="px-5 py-10 text-center text-muted-foreground">Nenhum contrato ativo.</td></tr>
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-5 py-10 text-center text-muted-foreground"
+                    >
+                      Nenhum contrato ativo.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -778,41 +903,72 @@ function SectionContratos() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/40">
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Peça</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Cliente</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Data Evento</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">Localização / Status</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">
+                      Peça
+                    </th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">
+                      Cliente
+                    </th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">
+                      Data Evento
+                    </th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase">
+                      Localização / Status
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {pecasNaRua.map((peca, idx) => {
                     const imgSrc = peca.image || "/placeholder.jpg";
                     return (
-                      <tr key={`${peca.orderId}-${peca.id}-${idx}`} className="border-b border-border hover:bg-muted/30">
+                      <tr
+                        key={`${peca.orderId}-${peca.id}-${idx}`}
+                        className="border-b border-border hover:bg-muted/30"
+                      >
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-3">
                             <div className="relative w-10 h-12 rounded-md overflow-hidden bg-secondary shrink-0 border border-border/50">
-                              <Image src={imgSrc} alt={peca.name} fill className="object-cover" sizes="40px" />
+                              <Image
+                                src={imgSrc}
+                                alt={peca.name}
+                                fill
+                                className="object-cover"
+                                sizes="40px"
+                              />
                             </div>
                             <div>
-                              <span className="font-semibold text-foreground text-xs">{peca.name}</span>
-                              <p className="text-[10px] text-muted-foreground font-mono">SKU: {peca.sku} | T: {peca.size}</p>
+                              <span className="font-semibold text-foreground text-xs">
+                                {peca.name}
+                              </span>
+                              <p className="text-[10px] text-muted-foreground font-mono">
+                                SKU: {peca.sku} | T: {peca.size}
+                              </p>
                             </div>
                           </div>
                         </td>
                         <td className="px-5 py-3">
-                          <p className="font-medium text-foreground text-xs">{peca.clientName}</p>
-                          <a href={`https://wa.me/${peca.clientPhone?.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="text-[10px] text-primary hover:underline flex items-center gap-1 mt-0.5">
+                          <p className="font-medium text-foreground text-xs">
+                            {peca.clientName}
+                          </p>
+                          <a
+                            href={`https://wa.me/${peca.clientPhone?.replace(/\D/g, "")}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-primary hover:underline flex items-center gap-1 mt-0.5"
+                          >
                             {peca.clientPhone}
                           </a>
                         </td>
                         <td className="px-5 py-3 font-medium text-xs">
-                          {peca.eventoDate ? peca.eventoDate.split("-").reverse().join("/") : "-"}
+                          {peca.eventoDate
+                            ? peca.eventoDate.split("-").reverse().join("/")
+                            : "-"}
                         </td>
                         <td className="px-5 py-3">
                           {peca.status === "confirmado" ? (
                             <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center w-fit gap-1.5 border border-blue-100">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> Na Loja (Reservado)
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>{" "}
+                              Na Loja (Reservado)
                             </span>
                           ) : (
                             <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center w-fit gap-1.5 border border-amber-100">
@@ -825,7 +981,12 @@ function SectionContratos() {
                   })}
                   {pecasNaRua.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-5 py-10 text-center text-muted-foreground">Nenhuma peça alugada no momento.</td>
+                      <td
+                        colSpan={4}
+                        className="px-5 py-10 text-center text-muted-foreground"
+                      >
+                        Nenhuma peça alugada no momento.
+                      </td>
                     </tr>
                   )}
                 </tbody>
@@ -840,27 +1001,64 @@ function SectionContratos() {
         <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md flex flex-col gap-5">
             <div>
-              <h2 className="text-lg font-bold text-foreground">Receber Devolução</h2>
-              <p className="text-sm text-muted-foreground">Contrato #{devolvendo.id} - {devolvendo.clientName}</p>
+              <h2 className="text-lg font-bold text-foreground">
+                Receber Devolução
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Contrato #{devolvendo.id} - {devolvendo.clientName}
+              </p>
             </div>
             <div>
-              <Label className="text-xs mb-2 block font-semibold text-primary">Estado em que os vestidos retornaram:</Label>
+              <Label className="text-xs mb-2 block font-semibold text-primary">
+                Estado em que os vestidos retornaram:
+              </Label>
               <div className="grid grid-cols-2 gap-3">
-                <Button type="button" variant={devolucaoStatus === "livre" ? "default" : "outline"} onClick={() => setDevolucaoStatus("livre")} className="h-10 text-xs">
+                <Button
+                  type="button"
+                  variant={devolucaoStatus === "livre" ? "default" : "outline"}
+                  onClick={() => setDevolucaoStatus("livre")}
+                  className="h-10 text-xs"
+                >
                   Perfeitos (Vitrine)
                 </Button>
-                <Button type="button" variant={devolucaoStatus === "manutencao" ? "default" : "outline"} onClick={() => setDevolucaoStatus("manutencao")} className="h-10 text-xs text-amber-700 border-amber-200 hover:bg-amber-50">
+                <Button
+                  type="button"
+                  variant={
+                    devolucaoStatus === "manutencao" ? "default" : "outline"
+                  }
+                  onClick={() => setDevolucaoStatus("manutencao")}
+                  className="h-10 text-xs text-amber-700 border-amber-200 hover:bg-amber-50"
+                >
                   Lavanderia / Reparo
                 </Button>
               </div>
             </div>
             <div>
-              <Label className="text-xs mb-1.5 block">Houve atraso ou avaria? Cobrar Multa (R$):</Label>
-              <Input type="number" min={0} value={multa} onChange={(e) => setMulta(Number(e.target.value))} className="h-10" />
+              <Label className="text-xs mb-1.5 block">
+                Houve atraso ou avaria? Cobrar Multa (R$):
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                value={multa}
+                onChange={(e) => setMulta(Number(e.target.value))}
+                className="h-10"
+              />
             </div>
             <div className="flex gap-3 pt-2">
-              <Button onClick={() => setDevolvendo(null)} variant="ghost" className="flex-1">Cancelar</Button>
-              <Button onClick={registrarDevolucao} className="flex-1 bg-amber-600 hover:bg-amber-700">Confirmar Recebimento</Button>
+              <Button
+                onClick={() => setDevolvendo(null)}
+                variant="ghost"
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={registrarDevolucao}
+                className="flex-1 bg-amber-600 hover:bg-amber-700"
+              >
+                Confirmar Recebimento
+              </Button>
             </div>
           </div>
         </div>
@@ -1325,65 +1523,92 @@ function SectionConfiguracoes() {
 
 // ─── ESTOQUE ──────────────────────────────────────────────────────────────
 function SectionEstoque() {
-  const { catalog, products, deleteProduct, setEditingProduct, setSection, setCollections, updateProduct } = useAdminStore()
-  const itensParaMostrar = products.length > 0 ? products : catalog
+  const {
+    catalog,
+    products,
+    deleteProduct,
+    setEditingProduct,
+    setSection,
+    setCollections,
+    updateProduct,
+  } = useAdminStore();
+  const itensParaMostrar = products.length > 0 ? products : catalog;
 
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("todos")
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("todos");
 
   const filteredItems = itensParaMostrar.filter((item: any) => {
-    const matchSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.sku.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchStatus = statusFilter === "todos" || item.stock === statusFilter
-    return matchSearch && matchStatus
-  })
+    const matchSearch =
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchStatus = statusFilter === "todos" || item.stock === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   const handleDelete = async (id: string) => {
     if (!confirm("Tem certeza que deseja apagar esta peça do estoque?")) return;
     try {
-      const response = await fetch(`/api/produtos?id=${id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/produtos?id=${id}`, {
+        method: "DELETE",
+      });
       const result = await response.json();
       if (result.success) {
         deleteProduct(id);
-        const resCol = await fetch('/api/colecoes');
+        const resCol = await fetch("/api/colecoes");
         if (resCol.ok) setCollections(await resCol.json());
-      }
-      else alert("Erro ao apagar no banco de dados.");
+      } else alert("Erro ao apagar no banco de dados.");
     } catch (error) {
       alert("Erro de conexão com a API.");
     }
-  }
+  };
 
   // Agora esta função serve apenas para tirar da Manutenção e voltar para a Vitrine
   const handleAtivarPeca = async (id: string) => {
     try {
       const res = await fetch(`/api/produtos?id=${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stock: 'livre' })
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stock: "livre" }),
       });
       if (res.ok) {
-        updateProduct(id, { stock: 'livre' });
+        updateProduct(id, { stock: "livre" });
       } else {
         alert("Erro ao atualizar o status da peça.");
       }
     } catch (error) {
       alert("Erro de conexão.");
     }
-  }
+  };
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Catálogo & Inventário</h1>
-          <p className="text-sm text-muted-foreground">{itensParaMostrar.length} peças cadastradas na loja</p>
+          <h1 className="text-xl font-semibold text-foreground">
+            Catálogo & Inventário
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {itensParaMostrar.length} peças cadastradas na loja
+          </p>
         </div>
-        <Button size="sm" className="gap-1.5" onClick={() => { setEditingProduct(null); setSection("cadastro"); }}><Plus size={14} /> Nova Peça</Button>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          onClick={() => {
+            setEditingProduct(null);
+            setSection("cadastro");
+          }}
+        >
+          <Plus size={14} /> Nova Peça
+        </Button>
       </div>
 
       <div className="flex gap-3 flex-wrap items-center bg-white border border-border rounded-xl p-4 shadow-sm">
         <div className="relative flex-1 min-w-[200px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
           <Input
             placeholder="Buscar por nome ou SKU..."
             value={searchTerm}
@@ -1402,7 +1627,15 @@ function SectionEstoque() {
           </SelectContent>
         </Select>
         {(searchTerm || statusFilter !== "todos") && (
-          <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchTerm(""); setStatusFilter("todos"); }}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 text-xs text-muted-foreground"
+            onClick={() => {
+              setSearchTerm("");
+              setStatusFilter("todos");
+            }}
+          >
             Limpar Filtros
           </Button>
         )}
@@ -1413,32 +1646,60 @@ function SectionEstoque() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Peça</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">SKU</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tamanho</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Condição Física</th>
-                <th className="text-right px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ações</th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Peça
+                </th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  SKU
+                </th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Tamanho
+                </th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Condição Física
+                </th>
+                <th className="text-right px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.map((item: any) => {
                 const imgSrc = item.images?.[0] || item.image;
-                const finalImg = (typeof imgSrc === 'string' && imgSrc.trim() !== '') ? imgSrc : "/placeholder.jpg";
+                const finalImg =
+                  typeof imgSrc === "string" && imgSrc.trim() !== ""
+                    ? imgSrc
+                    : "/placeholder.jpg";
 
                 return (
-                  <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <tr
+                    key={item.id}
+                    className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                  >
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         <div className="relative w-10 h-12 rounded-md overflow-hidden bg-secondary shrink-0 border border-border/50">
-                          <Image src={finalImg} alt={item.name} fill className="object-cover" sizes="40px" />
+                          <Image
+                            src={finalImg}
+                            alt={item.name}
+                            fill
+                            className="object-cover"
+                            sizes="40px"
+                          />
                         </div>
-                        <span className="font-medium text-foreground">{item.name}</span>
+                        <span className="font-medium text-foreground">
+                          {item.name}
+                        </span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{item.sku}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{item.size}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
+                      {item.sku}
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">
+                      {item.size}
+                    </td>
                     <td className="px-5 py-3">
-                      {item.stock === 'manutencao' ? (
+                      {item.stock === "manutencao" ? (
                         <span className="bg-red-50 text-red-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center w-fit gap-1">
                           <AlertCircle size={12} /> Inativo/Manutenção
                         </span>
@@ -1449,12 +1710,11 @@ function SectionEstoque() {
                       )}
                     </td>
                     <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
-                      
-                      {item.stock === 'manutencao' && (
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="h-7 text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50" 
+                      {item.stock === "manutencao" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                           onClick={() => handleAtivarPeca(item.id)}
                           title="Devolver para o Catálogo"
                         >
@@ -1462,23 +1722,47 @@ function SectionEstoque() {
                         </Button>
                       )}
 
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-colors" onClick={() => { setEditingProduct(item); setSection("cadastro") }} title="Editar Peça">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                        onClick={() => {
+                          setEditingProduct(item);
+                          setSection("cadastro");
+                        }}
+                        title="Editar Peça"
+                      >
                         <Pencil size={14} />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors" onClick={() => handleDelete(item.id)} title="Apagar Peça">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                        onClick={() => handleDelete(item.id)}
+                        title="Apagar Peça"
+                      >
                         <Trash2 size={14} />
                       </Button>
                     </td>
                   </tr>
-                )
+                );
               })}
-              {filteredItems.length === 0 && <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhuma peça encontrada com estes filtros.</td></tr>}
+              {filteredItems.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-5 py-10 text-center text-sm text-muted-foreground"
+                  >
+                    Nenhuma peça encontrada com estes filtros.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // ─── CADASTRO DE PRODUTO (COMPLETO) ───────────────────────────────────────────
@@ -1778,7 +2062,9 @@ function SectionCadastro() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="livre">Ativa no Catálogo</SelectItem>
-                    <SelectItem value="manutencao">Em Manutenção / Inativa</SelectItem>
+                    <SelectItem value="manutencao">
+                      Em Manutenção / Inativa
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1956,7 +2242,7 @@ function SectionColecoes() {
     setIsCreating(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  
+
   const openEdit = (col: SeasonalCollection) => {
     setForm({
       name: col.name,
@@ -2051,7 +2337,9 @@ function SectionColecoes() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label className="text-xs mb-1.5 font-medium">Nome da Coleção *</Label>
+              <Label className="text-xs mb-1.5 font-medium">
+                Nome da Coleção *
+              </Label>
               <Input
                 value={form.name}
                 onChange={(e) =>
@@ -2078,9 +2366,12 @@ function SectionColecoes() {
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between mb-1">
-              <Label className="text-xs font-semibold text-primary">Selecione as peças desta coleção ({form.productIds.length} selecionadas)</Label>
+              <Label className="text-xs font-semibold text-primary">
+                Selecione as peças desta coleção ({form.productIds.length}{" "}
+                selecionadas)
+              </Label>
             </div>
-            
+
             {/* OTIMIZAÇÃO: Usamos flex-wrap e largura fixa (w-24) para as miniaturas nunca esticarem. O items-start também impede estiramento vertical */}
             <div className="flex flex-wrap gap-3 mt-1 max-h-[360px] overflow-y-auto items-start pr-2 custom-scrollbar border border-border/50 rounded-xl p-3 bg-muted/10">
               {products.map((p) => {
@@ -2115,7 +2406,10 @@ function SectionColecoes() {
                       )}
                     </div>
                     <div className="p-1.5 bg-white flex flex-col gap-0.5 border-t border-border/50">
-                      <p className="text-[10px] font-semibold text-foreground truncate" title={p.name}>
+                      <p
+                        className="text-[10px] font-semibold text-foreground truncate"
+                        title={p.name}
+                      >
                         {p.name}
                       </p>
                       <p className="text-[8px] text-muted-foreground font-mono">
@@ -2216,12 +2510,16 @@ function SectionColecoes() {
                 <div className="flex items-center gap-2 mb-3">
                   <Layers size={14} className="text-muted-foreground" />
                   <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                    {colProducts.length} peça{colProducts.length !== 1 ? "s" : ""} na coleção
+                    {colProducts.length} peça
+                    {colProducts.length !== 1 ? "s" : ""} na coleção
                   </span>
                 </div>
-                
+
                 {colProducts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic bg-secondary/20 p-4 rounded-lg border border-dashed border-border text-center">Coleção vazia. Clique no botão de edição para adicionar vestidos.</p>
+                  <p className="text-sm text-muted-foreground italic bg-secondary/20 p-4 rounded-lg border border-dashed border-border text-center">
+                    Coleção vazia. Clique no botão de edição para adicionar
+                    vestidos.
+                  </p>
                 ) : (
                   <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
                     {colProducts.map((p) => {
@@ -2244,7 +2542,10 @@ function SectionColecoes() {
                             />
                           </div>
                           <div className="p-2 flex flex-col gap-0.5 text-center">
-                            <p className="text-[11px] font-semibold text-foreground truncate" title={p.name}>
+                            <p
+                              className="text-[11px] font-semibold text-foreground truncate"
+                              title={p.name}
+                            >
                               {p.name}
                             </p>
                             <p className="text-[9px] text-muted-foreground font-mono">

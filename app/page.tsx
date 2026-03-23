@@ -69,40 +69,36 @@ export default function VitrinePage() {
     router.push("/checkout")
   }
 
-  // ── LÓGICA INTELIGENTE DE DISPONIBILIDADE (COM QUANTIDADE NO ESTOQUE) ──
+  // ── LÓGICA INTELIGENTE DE DISPONIBILIDADE (CORRIGIDA) ──
   // Usamos um Map para contar quantas unidades de cada vestido estão alugadas para a data
   const unavailableCounts = new Map<string, number>()
   
   if (weddingDate && storeConfig) {
     const targetTime = new Date(weddingDate + "T12:00:00").getTime()
     
-   // Encontra este bloco na tua app/page.tsx por volta da linha 66
-// ── LÓGICA INTELIGENTE DE DISPONIBILIDADE ──
-  const unavailableIds = new Set<string>()
-  
-  if (weddingDate && storeConfig) {
-    const targetTime = new Date(weddingDate + "T12:00:00").getTime()
-    
     orders.forEach(o => {
-      // SÓ BLOQUEIA O VESTIDO SE O CONTRATO ESTIVER FECHADO/CONFIRMADO E TIVER DATA DE CASAMENTO
-      if (o.status !== 'confirmado') return
+      // Bloqueia tanto o que está 'confirmado' quanto o que já saiu na rua ('em_uso')
+      if (o.status !== 'confirmado' && o.status !== 'em_uso') return
       if (!o.eventoDate) return
       
       const eventTime = new Date(o.eventoDate + "T12:00:00").getTime()
       const diffDays = Math.round((targetTime - eventTime) / (1000 * 60 * 60 * 24))
       
-      const windowBefore = storeConfig.windowBefore || 2
-      const windowAfter = storeConfig.windowAfter || 3
+      const windowBefore = storeConfig.windowBefore !== undefined ? Number(storeConfig.windowBefore) : 3
+      const windowAfter = storeConfig.windowAfter !== undefined ? Number(storeConfig.windowAfter) : 3
       const isConflict = diffDays >= -windowBefore && diffDays <= windowAfter
       
       if (isConflict) {
-        o.items.forEach((item: any) => unavailableIds.add(item.id))
+        o.items.forEach((item: any) => {
+          const idStr = item.id.toString()
+          const currentCount = unavailableCounts.get(idStr) || 0
+          unavailableCounts.set(idStr, currentCount + 1)
+        })
       }
     })
   }
-  }
 
-  // Filtra as peças cruzando a quantidade alugada vs quantidade em estoque
+  // Filtra as peças cruzando a quantidade alugada vs quantidade em estoque físico
   const visibleDresses = products.filter((d) => {
     // Esconde se o adm marcou como oculto manualmente
     if (d.hidden) return false
@@ -110,10 +106,11 @@ export default function VitrinePage() {
     // Esconde se o adm forçou o status da peça inteira para manutenção
     if (d.stock === 'manutencao') return false 
 
-    const rentedCount = unavailableCounts.get(d.id) || 0
-    const stockQuantity = d.quantity || 1
+    const idStr = d.id.toString()
+    const rentedCount = unavailableCounts.get(idStr) || 0
+    const stockQuantity = Number(d.quantity) || 1
     
-    // Só exibe a peça se houver mais quantidade no estoque do que a quantidade alugada naquelas datas
+    // Só exibe a peça se houver MAIS quantidade no estoque do que a quantidade que já está alugada!
     return rentedCount < stockQuantity
   })
   
@@ -129,9 +126,9 @@ export default function VitrinePage() {
         const ids = activeCollection.productIds || [];
         const safeArray = Array.isArray(ids) ? ids : (typeof ids === 'string' ? JSON.parse(ids) : []);
         
-        // Verifica se a peça pertence à coleção, se não está oculta, e aplica a mesma regra de quantidade de estoque
-        const rentedCount = unavailableCounts.get(p.id) || 0
-        const stockQuantity = p.quantity || 1
+        const idStr = p.id.toString()
+        const rentedCount = unavailableCounts.get(idStr) || 0
+        const stockQuantity = Number(p.quantity) || 1
         const hasStock = rentedCount < stockQuantity
 
         return Array.isArray(safeArray) && safeArray.includes(p.id) && !p.hidden && p.stock !== 'manutencao' && hasStock;
