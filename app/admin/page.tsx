@@ -4,7 +4,7 @@ import { useState, useEffect, Fragment } from "react";
 import { useAdminStore } from "@/lib/admin-store";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { MetricCard } from "@/components/admin/metric-card";
-import { ModalLiberacao } from "@/components/admin/modal-liberacao"
+import { ModalLiberacao } from "@/components/admin/modal-liberacao";
 import {
   OrderStatusBadge,
   StockStatusBadge,
@@ -59,93 +59,198 @@ import {
   Unlock,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import type { Product, SeasonalCollection, Category } from "@/lib/admin-store";
 
-// ─── DASHBOARD ───────────────────────────────────────────────────────────────
+// ─── DASHBOARD PRINCIPAL ──────────────────────────────────────────────────
 function SectionDashboard() {
-  const { orders, catalog, setSelectedOrder, setOrderModalOpen } =
-    useAdminStore();
+  const { orders, catalog, setSelectedOrder, setOrderModalOpen, transactions, products, updateOrderStatus, updateProduct } = useAdminStore();
+  
+  // -- ESTADOS DO CALENDÁRIO --
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+  const [currentMonthDate, setCurrentMonthDate] = useState<Date>(new Date());
+  const [calendarMode, setCalendarMode] = useState<"provas" | "devolucoes">("provas");
+
+  // -- ESTADOS PARA RECEBER DEVOLUÇÃO DIRETAMENTE NO DASHBOARD --
+  const [devolvendo, setDevolvendo] = useState<any>(null);
+  const [devolucaoStatus, setDevolucaoStatus] = useState<"livre" | "manutencao">("livre");
+  const [multa, setMulta] = useState(0);
+
   const today = new Date().toISOString().split("T")[0];
 
-  const todayOrders = orders
-    .filter((o) => o.provaDate === today && o.status !== "cancelado")
-    .sort((a, b) => a.provaTime.localeCompare(b.provaTime));
+  const getReturnDate = (eventoDate?: string) => {
+    if (!eventoDate) return null;
+    const d = new Date(eventoDate + "T12:00:00");
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() === 0) d.setDate(d.getDate() + 1); // Pula domingo
+    return d.toISOString().split("T")[0];
+  };
+
+  // 1. DADOS DE PROVAS (Esconde as que já estão em uso, concluídas ou canceladas)
+  const provasOrders = orders.filter(o => 
+    !['cancelado', 'em_uso', 'concluido'].includes(o.status)
+  );
+  
+  // 2. DADOS DE DEVOLUÇÕES
+  const devolucoesOrders = orders.filter(o => 
+    ['confirmado', 'em_uso'].includes(o.status) && !!o.eventoDate
+  );
+
+  // 3. DADOS DO DIA SELECIONADO
+  const selectedDateOrders = calendarMode === "provas" 
+    ? provasOrders.filter((o) => o.provaDate === selectedDate).sort((a, b) => a.provaTime.localeCompare(b.provaTime))
+    : devolucoesOrders.filter((o) => getReturnDate(o.eventoDate) === selectedDate);
+
+  // 4. PEÇAS DO DIA
+  const pecasParaODia = selectedDateOrders.flatMap(order => 
+    (order.items || []).map(item => ({
+        ...item,
+        clientName: order.clientName,
+        time: calendarMode === "provas" ? order.provaTime : "Até as 18h",
+        orderId: order.id,
+        statusPedido: order.status
+    }))
+  );
 
   const nextWeek = new Date();
   nextWeek.setDate(nextWeek.getDate() + 7);
   const nextWeekStr = nextWeek.toISOString().split("T")[0];
 
-  const rentedIds = new Set(
-    catalog.filter((d) => d.stock === "alugado").map((d) => d.id),
-  );
+  const rentedIds = new Set(catalog.filter((d) => d.stock === "alugado").map((d) => d.id));
+  
   const conflicts = orders.filter((o) => {
     if (o.status === "cancelado") return false;
     if (o.provaDate < today || o.provaDate > nextWeekStr) return false;
     return o.items.some((item) => rentedIds.has(item.id));
   });
 
-  const totalNoivas = orders.length;
-  const fechados = orders.filter(
-    (o) =>
-      o.status === "confirmado" ||
-      o.status === "em_uso" ||
-      o.status === "concluido",
-  ).length;
-  const taxaConversao =
-    totalNoivas > 0 ? Math.round((fechados / totalNoivas) * 100) : 0;
-  const pendentes = orders.filter(
-    (o) =>
-      o.status === "pendente" ||
-      o.status === "novo" ||
-      o.status === "compareceu",
-  ).length;
-  const faturamentoPendente = orders
-    .filter((o) => o.status === "confirmado" && o.totalValue)
-    .reduce((s, o) => s + (o.totalValue ?? 0) - (o.signalPaid ?? 0), 0);
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  
+  const faturamentoMes = transactions
+    .filter((t: any) => {
+      if (!t.date || t.type !== 'entrada') return false;
+      const tDate = new Date(t.date + "T12:00:00");
+      return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear;
+    })
+    .reduce((acc: number, curr: any) => acc + Number(curr.amount), 0);
+
+  const pendentes = orders.filter((o) => ['novo', 'pendente', 'compareceu'].includes(o.status)).length;
+  const alugueresAtivos = orders.filter((o) => ['confirmado', 'em_uso'].includes(o.status)).length;
+  const nomeMes = new Date().toLocaleString('pt-BR', { month: 'long' });
+
+  const year = currentMonthDate.getFullYear();
+  const month = currentMonthDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayOfWeek = new Date(year, month, 1).getDay(); 
+  
+  const blanks = Array(firstDayOfWeek).fill(null);
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  const nextMonth = () => setCurrentMonthDate(new Date(year, month + 1, 1));
+  const prevMonth = () => setCurrentMonthDate(new Date(year, month - 1, 1));
+  const goToToday = () => {
+    setCurrentMonthDate(new Date());
+    setSelectedDate(today);
+  };
+
+  // Função para processar a devolução no backend
+  const registrarDevolucao = async () => {
+    if (!devolvendo) return;
+    try {
+      await fetch(`/api/pedidos?id=${devolvendo.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...devolvendo, status: "concluido" }),
+      });
+      updateOrderStatus(devolvendo.id, "concluido");
+
+      for (const item of devolvendo.items) {
+        await fetch(`/api/produtos?id=${item.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stock: devolucaoStatus }),
+        });
+        updateProduct(item.id, { stock: devolucaoStatus });
+      }
+
+      if (multa > 0) {
+        await fetch("/api/financeiro", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "entrada",
+            description: `Multa/Avaria - Contrato #${devolvendo.id}`,
+            amount: multa,
+            date: new Date().toISOString().split("T")[0],
+            category: "Multa",
+          }),
+        });
+      }
+
+      setDevolvendo(null);
+      setMulta(0);
+      setDevolucaoStatus("livre");
+    } catch (e) {
+      alert("Erro ao concluir devolução.");
+    }
+  };
+
+  // Criamos as nossas próprias badges para garantir que ficam perfeitas
+  const renderBadge = (status: string) => {
+    switch (status) {
+      case 'novo': return <span className="bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Novo</span>;
+      case 'pendente': return <span className="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Pendente</span>;
+      case 'compareceu': return <span className="bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Compareceu</span>;
+      case 'confirmado': return <span className="bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Confirmado</span>;
+      case 'em_uso': return <span className="bg-orange-100 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Em Uso</span>;
+      case 'concluido': return <span className="bg-gray-100 text-gray-700 border border-gray-200 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Concluído</span>;
+      case 'cancelado': return <span className="bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Cancelado</span>;
+      default: return <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">{status}</span>;
+    }
+  };
 
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
+        <h1 className="text-xl font-semibold text-foreground">Dashboard Geral</h1>
         <p className="text-sm text-muted-foreground">
-          {new Date().toLocaleDateString("pt-BR", {
-            weekday: "long",
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          })}
+          {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
         </p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          title="Provas Hoje"
-          value={todayOrders.length}
-          sub="agendamentos para hoje"
+          title={`Faturamento (${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)})`}
+          value={`R$ ${faturamentoMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+          sub="entradas financeiras"
+          icon={DollarSign}
+          accent="green"
+        />
+        <MetricCard
+          title="Provas Pendentes"
+          value={pendentes.toString()}
+          sub="agendamentos a confirmar"
           icon={CalendarCheck}
           accent="blue"
         />
         <MetricCard
-          title="Aguardando Contrato"
-          value={pendentes}
-          sub="provas realizadas/pendentes"
-          icon={ClipboardList}
+          title="Alugueres Ativos"
+          value={alugueresAtivos.toString()}
+          sub="peças reservadas/na rua"
+          icon={TrendingUp}
           accent="amber"
         />
         <MetricCard
-          title="Taxa de Conversão"
-          value={`${taxaConversao}%`}
-          sub={`${fechados} de ${totalNoivas} noivas`}
-          icon={TrendingUp}
-          accent="green"
-        />
-        <MetricCard
-          title="Faturamento Pendente"
-          value={`R$ ${faturamentoPendente.toLocaleString("pt-BR")}`}
-          sub="saldo a receber nas retiradas"
-          icon={DollarSign}
-          accent="red"
+          title="Peças no Acervo"
+          value={products.reduce((acc, curr) => acc + (Number(curr.quantity) || 1), 0).toString()}
+          sub="total de vestidos"
+          icon={ClipboardList}
+          accent="default"
         />
       </div>
 
@@ -154,54 +259,30 @@ function SectionDashboard() {
           <div className="flex items-center gap-2 mb-4">
             <AlertTriangle size={16} className="text-amber-600 shrink-0" />
             <h2 className="text-sm font-semibold text-amber-800">
-              {conflicts.length} alerta{conflicts.length !== 1 ? "s" : ""} de
-              conflito de estoque
+              {conflicts.length} alerta{conflicts.length !== 1 ? "s" : ""} de conflito de estoque
             </h2>
           </div>
           <div className="flex flex-col gap-3">
             {conflicts.map((order) => {
-              const conflictItems = order.items.filter((item) =>
-                rentedIds.has(item.id),
-              );
+              const conflictItems = order.items.filter((item) => rentedIds.has(item.id));
               return (
-                <div
-                  key={order.id}
-                  className="flex items-start justify-between gap-4 bg-white rounded-lg border border-amber-100 p-4"
-                >
+                <div key={order.id} className="flex items-start justify-between gap-4 bg-white rounded-lg border border-amber-100 p-4">
                   <div className="flex flex-col gap-1">
                     <p className="text-sm font-medium text-foreground">
-                      {order.clientName}{" "}
-                      <span className="ml-2 text-xs text-muted-foreground font-normal">
-                        {order.id}
-                      </span>
+                      {order.clientName} <span className="ml-2 text-xs text-muted-foreground font-normal">{order.id}</span>
                     </p>
                     <p className="text-xs text-amber-700">
-                      Prova em{" "}
-                      {new Date(
-                        order.provaDate + "T12:00:00",
-                      ).toLocaleDateString("pt-BR")}{" "}
-                      às {order.provaTime}
+                      Prova em {new Date(order.provaDate + "T12:00:00").toLocaleDateString("pt-BR")} às {order.provaTime}
                     </p>
                     <div className="flex flex-wrap gap-1.5 mt-1">
                       {conflictItems.map((item) => (
-                        <span
-                          key={item.id}
-                          className="text-[11px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium"
-                        >
+                        <span key={item.id} className="text-[11px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">
                           {item.name} ({item.sku}) — ainda alugado
                         </span>
                       ))}
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs shrink-0 border-amber-300 text-amber-700 hover:bg-amber-50"
-                    onClick={() => {
-                      setSelectedOrder(order);
-                      setOrderModalOpen(true);
-                    }}
-                  >
+                  <Button size="sm" variant="outline" className="h-7 text-xs shrink-0 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => { setSelectedOrder(order); setOrderModalOpen(true); }}>
                     <Pencil size={11} className="mr-1" /> Ver Pedido
                   </Button>
                 </div>
@@ -211,60 +292,91 @@ function SectionDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-border overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-            <Clock size={15} className="text-primary" />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+        
+        {/* ESQUERDA: AGENDA DETALHADA DO DIA (1 Coluna) */}
+        <div className="bg-white rounded-xl border border-border overflow-hidden lg:col-span-1 shadow-sm lg:sticky lg:top-24">
+          <div className={`px-5 py-4 border-b border-border flex items-center gap-2 ${calendarMode === 'provas' ? 'bg-muted/20' : 'bg-amber-50/50'}`}>
+            {calendarMode === 'provas' ? <Clock size={16} className="text-primary" /> : <PackageOpen size={16} className="text-amber-600" />}
             <h2 className="text-sm font-semibold text-foreground">
-              Agenda do Dia
+              {calendarMode === 'provas' ? 'Agenda do Dia' : 'Retornos do Dia'}
             </h2>
-            {todayOrders.length > 0 && (
-              <span className="ml-auto text-xs bg-primary/10 text-primary font-semibold px-2 py-0.5 rounded-full">
-                {todayOrders.length}
-              </span>
-            )}
+            <span className={`ml-auto text-xs font-bold px-2.5 py-1 rounded-md border ${calendarMode === 'provas' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+              {selectedDate.split('-').reverse().join('/')}
+            </span>
           </div>
-          {todayOrders.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-              Nenhuma prova agendada para hoje.
+          
+          {selectedDateOrders.length === 0 ? (
+            <div className="px-5 py-12 text-center text-sm text-muted-foreground flex flex-col items-center gap-3">
+               <CalendarCheck size={40} className="text-muted-foreground/20" />
+               <p>{calendarMode === 'provas' ? 'Dia livre! Nenhuma prova marcada.' : 'Nenhuma peça agendada para retornar hoje.'}</p>
             </div>
           ) : (
-            <div className="divide-y divide-border">
-              {todayOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="px-5 py-3.5 flex items-center justify-between hover:bg-muted/30 transition-colors"
+            <div className="divide-y divide-border max-h-[600px] overflow-y-auto custom-scrollbar">
+              {selectedDateOrders.map((order) => (
+                <div 
+                  key={order.id} 
+                  onClick={() => { setSelectedOrder(order); setOrderModalOpen(true); }}
+                  className="p-4 flex flex-col gap-2 hover:bg-muted/30 transition-colors cursor-pointer group"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 text-center">
-                      <p className="text-xs font-bold text-primary leading-none">
-                        {order.provaTime}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {order.clientName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {order.items?.length || 0} peça
-                        {order.items?.length !== 1 ? "s" : ""} &middot;{" "}
-                        {order.clientPhone}
-                      </p>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`px-2 py-1 rounded-md text-xs font-bold border transition-colors ${calendarMode === 'provas' ? 'bg-primary/10 text-primary border-primary/20 group-hover:bg-primary group-hover:text-white' : 'bg-amber-100 text-amber-700 border-amber-200 group-hover:bg-amber-600 group-hover:text-white'}`}>
+                        {calendarMode === 'provas' ? order.provaTime : 'Devolver'}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-foreground line-clamp-1" title={order.clientName}>{order.clientName}</p>
+                        <p className="text-[11px] text-muted-foreground">{order.clientPhone}</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <OrderStatusBadge status={order.status} />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0"
-                      onClick={() => {
-                        setSelectedOrder(order);
-                        setOrderModalOpen(true);
-                      }}
-                    >
-                      <Pencil size={12} />
-                    </Button>
+                  
+                  {order.items && order.items.length > 0 && (
+                    <div className="flex flex-col gap-1 mt-1 pl-1 border-l-2 border-border/50 ml-1">
+                      {order.items.map(item => (
+                        <p key={item.id} className="text-[10px] text-muted-foreground truncate" title={item.name}>
+                          • {item.name} <span className="font-mono opacity-60">({item.sku})</span>
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
+                    <p className="text-xs text-muted-foreground font-medium">
+                      {order.items?.length || 0} peça{(order.items?.length !== 1) ? "s" : ""}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      
+                      {/* BOTÃO CONTRATO: Só aparece em modo provas E para os status iniciais */}
+                      {calendarMode === 'provas' && ['novo', 'pendente', 'compareceu'].includes(order.status) && (
+                        <Button
+                          size="sm"
+                          className="h-6 text-[10px] px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/admin/fechamento/${order.id}`;
+                          }}
+                        >
+                          <FileSignature size={12} className="mr-1" /> Contrato
+                        </Button>
+                      )}
+
+                      {/* BOTÃO RECEBER DEVOLUÇÃO: Só aparece no modo devoluções E se o status for em_uso */}
+                      {calendarMode === 'devolucoes' && order.status === 'em_uso' && (
+                        <Button
+                          size="sm"
+                          className="h-6 text-[10px] px-2.5 bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDevolvendo(order);
+                          }}
+                        >
+                          <PackageOpen size={12} className="mr-1" /> Receber
+                        </Button>
+                      )}
+
+                      {renderBadge(order.status)}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -272,92 +384,181 @@ function SectionDashboard() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-border overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-            <BarChart3 size={15} className="text-primary" />
+        {/* CENTRO: PEÇAS (1 Coluna) */}
+        <div className="bg-white rounded-xl border border-border overflow-hidden lg:col-span-1 shadow-sm lg:sticky lg:top-24">
+          <div className="px-5 py-4 border-b border-border flex items-center gap-2 bg-emerald-50/50">
+            <PackageCheck size={16} className="text-emerald-600" />
             <h2 className="text-sm font-semibold text-foreground">
-              Métricas de Conversão
+              {calendarMode === 'provas' ? 'Peças a Preparar' : 'Peças a Receber'}
             </h2>
+            <span className="ml-auto text-xs bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-md border border-emerald-200">
+              {pecasParaODia.length}
+            </span>
           </div>
-          <div className="p-5 flex flex-col gap-5">
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <Users size={14} className="text-muted-foreground" />
-                  <span className="text-muted-foreground">Total de noivas</span>
-                </div>
-                <span className="font-semibold text-foreground">
-                  {totalNoivas}
-                </span>
+          
+          <div className="p-4 max-h-[600px] overflow-y-auto custom-scrollbar flex flex-col gap-3">
+            {pecasParaODia.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+                <Layers size={32} className="opacity-20" />
+                <p className="text-xs text-center">{calendarMode === 'provas' ? 'Nenhuma peça para separar hoje.' : 'Nenhum retorno aguardado hoje.'}</p>
               </div>
-              <div className="w-full h-2 bg-border rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-400 rounded-full"
-                  style={{ width: "100%" }}
-                />
-              </div>
+            ) : (
+              pecasParaODia.map((peca, idx) => {
+                const finalImg = peca.image || "/placeholder.jpg";
+                return (
+                  <div key={`${peca.orderId}-${peca.id}-${idx}`} className="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/5 hover:border-primary/30 transition-colors shadow-sm">
+                    <div className="relative w-14 h-16 rounded-md overflow-hidden shrink-0 border border-border/50 bg-white">
+                      <Image src={finalImg} alt={peca.name} fill className="object-cover object-top" sizes="56px" />
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <p className="text-xs font-bold text-foreground line-clamp-2 leading-tight mb-1" title={peca.name}>{peca.name}</p>
+                      <p className="text-[10px] font-mono text-muted-foreground mb-1.5">{peca.sku} | Tam: {peca.size}</p>
+                      
+                      <div className="flex items-center justify-between bg-white px-1.5 py-1 rounded border border-border/50">
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-primary">
+                          <Clock size={10} /> {peca.time}
+                        </div>
+                        <p className="text-[10px] font-medium text-foreground truncate max-w-[80px]" title={peca.clientName}>
+                          {peca.clientName.split(' ')[0]}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
 
-              <div className="flex items-center justify-between text-sm mt-1">
-                <div className="flex items-center gap-2">
-                  <CalendarCheck size={14} className="text-muted-foreground" />
-                  <span className="text-muted-foreground">Vieram provar</span>
-                </div>
-                <span className="font-semibold text-foreground">
-                  {
-                    orders.filter(
-                      (o) =>
-                        o.status === "compareceu" ||
-                        o.status === "confirmado" ||
-                        o.status === "em_uso" ||
-                        o.status === "concluido",
-                    ).length
-                  }
-                </span>
-              </div>
-              <div className="w-full h-2 bg-border rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-amber-400 rounded-full"
-                  style={{
-                    width:
-                      totalNoivas > 0
-                        ? `${Math.round((orders.filter((o) => o.status === "compareceu" || o.status === "confirmado" || o.status === "em_uso" || o.status === "concluido").length / totalNoivas) * 100)}%`
-                        : "0%",
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-sm mt-1">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 size={14} className="text-muted-foreground" />
-                  <span className="text-muted-foreground">
-                    Contratos fechados
-                  </span>
-                </div>
-                <span className="font-semibold text-foreground">
-                  {fechados}
-                </span>
-              </div>
-              <div className="w-full h-2 bg-border rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary rounded-full"
-                  style={{
-                    width: totalNoivas > 0 ? `${taxaConversao}%` : "0%",
-                  }}
-                />
-              </div>
+        {/* DIREITA: CALENDÁRIO MENSAL GIGANTE (2 Colunas) */}
+        <div className="bg-white rounded-xl border border-border overflow-hidden lg:col-span-2 shadow-sm h-fit">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-muted/20 flex-wrap gap-3">
+            <div className="flex items-center gap-4">
+              <h2 className="text-base font-bold text-foreground capitalize">
+                {currentMonthDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
+              </h2>
+              <Button variant="outline" size="sm" className="h-7 px-3 text-xs bg-white" onClick={goToToday}>
+                Ir para Hoje
+              </Button>
             </div>
-            <Separator />
-            <div className="flex items-center justify-between bg-primary/5 rounded-lg px-4 py-3">
-              <p className="text-sm text-foreground font-medium">
-                Taxa de conversão geral
-              </p>
-              <p className="text-2xl font-bold font-serif text-primary">
-                {taxaConversao}%
-              </p>
+            
+            <div className="flex bg-muted p-1 rounded-lg border border-border">
+              <button 
+                onClick={() => setCalendarMode("provas")} 
+                className={`text-[11px] px-3 py-1.5 rounded-md font-bold transition-all ${calendarMode === 'provas' ? 'bg-white shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Provas / Retiradas
+              </button>
+              <button 
+                onClick={() => setCalendarMode("devolucoes")} 
+                className={`text-[11px] px-3 py-1.5 rounded-md font-bold transition-all ${calendarMode === 'devolucoes' ? 'bg-amber-50 shadow-sm text-amber-700' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Devoluções
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={prevMonth}>
+                <ChevronLeft size={16} />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={nextMonth}>
+                <ChevronRight size={16} />
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-4">
+            <div className="grid grid-cols-7 gap-2 text-center mb-3">
+              {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((dia, i) => (
+                <div key={i} className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider truncate">{dia}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {blanks.map((_, i) => (
+                <div key={`blank-${i}`} className="min-h-[100px] bg-secondary/20 rounded-lg border border-transparent"></div>
+              ))}
+              
+              {days.map((day) => {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isToday = dateStr === today;
+                const isSelected = dateStr === selectedDate;
+                
+                const dayOrders = calendarMode === "provas" 
+                  ? provasOrders.filter(o => o.provaDate === dateStr)
+                  : devolucoesOrders.filter(o => getReturnDate(o.eventoDate) === dateStr);
+
+                return (
+                  <div
+                    key={day}
+                    onClick={() => setSelectedDate(dateStr)}
+                    className={`min-h-[100px] p-1.5 rounded-lg border transition-all cursor-pointer flex flex-col gap-1.5 overflow-hidden ${
+                      isSelected 
+                        ? (calendarMode === 'provas' ? "border-primary ring-1 ring-primary/50 bg-primary/5 shadow-sm" : "border-amber-500 ring-1 ring-amber-500/50 bg-amber-50 shadow-sm")
+                        : isToday 
+                          ? "border-blue-300 bg-blue-50/50 hover:border-primary/50" 
+                          : "border-border hover:border-primary/40 hover:bg-secondary/30 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between px-1">
+                      <span className={`text-xs font-bold ${isToday ? "text-blue-600" : "text-muted-foreground"}`}>
+                        {day}
+                      </span>
+                      {dayOrders.length > 0 && (
+                        <span className={`text-[9px] font-bold px-1.5 rounded-sm border ${calendarMode === 'provas' ? 'bg-muted text-muted-foreground border-border/50' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+                          {dayOrders.length}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-1 overflow-y-auto no-scrollbar pb-1">
+                      {dayOrders.map((o, idx) => (
+                        <div 
+                          key={idx} 
+                          className={`flex items-center gap-1 bg-white border shadow-sm px-1.5 py-1 rounded text-[9px] font-medium text-foreground truncate ${calendarMode === 'devolucoes' ? 'border-amber-200' : 'border-border'}`}
+                          title={calendarMode === 'provas' ? `${o.provaTime} - ${o.clientName}` : `Devolução: ${o.clientName}`}
+                        >
+                          <span className={`font-bold shrink-0 ${calendarMode === 'provas' ? 'text-primary' : 'text-amber-600'}`}>
+                            {calendarMode === 'provas' ? `${o.provaTime.split(':')[0]}h` : <PackageOpen size={10} />}
+                          </span>
+                          <span className="truncate">{o.clientName.split(' ')[0]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       </div>
+
+      {/* MODAL DE DEVOLUÇÃO INTEGRADO NO DASHBOARD */}
+      {devolvendo && (
+        <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md flex flex-col gap-5 animate-in zoom-in-95 duration-200">
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Receber Devolução</h2>
+              <p className="text-sm text-muted-foreground">Contrato #{devolvendo.id} - {devolvendo.clientName}</p>
+            </div>
+            <div>
+              <Label className="text-xs mb-2 block font-semibold text-primary">Estado em que os vestidos retornaram:</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <Button type="button" variant={devolucaoStatus === "livre" ? "default" : "outline"} onClick={() => setDevolucaoStatus("livre")} className="h-10 text-xs">Perfeitos (Vitrine)</Button>
+                <Button type="button" variant={devolucaoStatus === "manutencao" ? "default" : "outline"} onClick={() => setDevolucaoStatus("manutencao")} className="h-10 text-xs text-amber-700 border-amber-200 hover:bg-amber-50">Lavanderia / Reparo</Button>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-1.5 block">Houve atraso ou avaria? Cobrar Multa (R$):</Label>
+              <Input type="number" min={0} value={multa} onChange={(e) => setMulta(Number(e.target.value))} className="h-10" />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button onClick={() => setDevolvendo(null)} variant="ghost" className="flex-1">Cancelar</Button>
+              <Button onClick={registrarDevolucao} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white">Confirmar Recebimento</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -540,11 +741,11 @@ function SectionPedidos() {
   );
 }
 
-
 // ─── ABA DE LOGÍSTICA & GIRO DE PEÇAS ──────────────────────────────────────────
 function SectionContratos() {
   // 1. Adicionado o updateOrderFinancial aqui para o Modal poder injetar o dinheiro
-  const { orders, updateOrderStatus, updateProduct, updateOrderFinancial } = useAdminStore();
+  const { orders, updateOrderStatus, updateProduct, updateOrderFinancial } =
+    useAdminStore();
 
   const contratos = orders
     .filter((o) => o.status === "confirmado" || o.status === "em_uso")
@@ -1042,14 +1243,14 @@ function SectionContratos() {
       )}
 
       {/* 4. O NOSSO NOVO MODAL DE LIBERAÇÃO RENDENRIZADO AQUI! */}
-      <ModalLiberacao 
-        open={!!pedidoParaLiberar} 
+      <ModalLiberacao
+        open={!!pedidoParaLiberar}
         onClose={() => setPedidoParaLiberar(null)}
         order={pedidoParaLiberar}
         onSuccess={(pedidoAtualizado: any) => {
           updateOrderStatus(pedidoAtualizado.id, "em_uso");
           if (updateOrderFinancial) {
-             updateOrderFinancial(pedidoAtualizado.id, pedidoAtualizado);
+            updateOrderFinancial(pedidoAtualizado.id, pedidoAtualizado);
           }
           setPedidoParaLiberar(null);
         }}
@@ -1514,90 +1715,127 @@ function SectionConfiguracoes() {
 
 // ─── ESTOQUE ──────────────────────────────────────────────────────────────
 function SectionEstoque() {
-  const { catalog, products, deleteProduct, setEditingProduct, setSection, setCollections, updateProduct, orders, storeConfig } = useAdminStore()
-  const itensParaMostrar = products.length > 0 ? products : catalog
+  const {
+    catalog,
+    products,
+    deleteProduct,
+    setEditingProduct,
+    setSection,
+    setCollections,
+    updateProduct,
+    orders,
+    storeConfig,
+  } = useAdminStore();
+  const itensParaMostrar = products.length > 0 ? products : catalog;
 
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("todos")
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("todos");
 
   const filteredItems = itensParaMostrar.filter((item: any) => {
-    const matchSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.sku.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchStatus = statusFilter === "todos" || item.stock === statusFilter
-    return matchSearch && matchStatus
-  })
+    const matchSearch =
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchStatus = statusFilter === "todos" || item.stock === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   const handleDelete = async (id: string) => {
     if (!confirm("Tem certeza que deseja apagar esta peça do estoque?")) return;
     try {
-      const response = await fetch(`/api/produtos?id=${id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/produtos?id=${id}`, {
+        method: "DELETE",
+      });
       const result = await response.json();
       if (result.success) {
         deleteProduct(id);
-        const resCol = await fetch('/api/colecoes');
+        const resCol = await fetch("/api/colecoes");
         if (resCol.ok) setCollections(await resCol.json());
-      }
-      else alert("Erro ao apagar no banco de dados.");
+      } else alert("Erro ao apagar no banco de dados.");
     } catch (error) {
       alert("Erro de conexão com a API.");
     }
-  }
+  };
 
   const handleAtivarPeca = async (id: string) => {
     try {
       const res = await fetch(`/api/produtos?id=${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stock: 'livre' })
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stock: "livre" }),
       });
       if (res.ok) {
-        updateProduct(id, { stock: 'livre' });
+        updateProduct(id, { stock: "livre" });
       } else {
         alert("Erro ao atualizar o status da peça.");
       }
     } catch (error) {
       alert("Erro de conexão.");
     }
-  }
+  };
 
   // ── MÁGICA: Calcular quantidade disponível HOJE ──
-  const unavailableCounts = new Map<string, number>()
+  const unavailableCounts = new Map<string, number>();
   if (storeConfig) {
-    const todayStr = new Date().toISOString().split('T')[0]
-    const targetTime = new Date(todayStr + "T12:00:00").getTime()
+    const todayStr = new Date().toISOString().split("T")[0];
+    const targetTime = new Date(todayStr + "T12:00:00").getTime();
 
-    orders.forEach(o => {
-      if (o.status !== 'confirmado' && o.status !== 'em_uso') return
-      if (!o.eventoDate) return
+    orders.forEach((o) => {
+      if (o.status !== "confirmado" && o.status !== "em_uso") return;
+      if (!o.eventoDate) return;
 
-      const eventTime = new Date(o.eventoDate + "T12:00:00").getTime()
-      const diffDays = Math.round((targetTime - eventTime) / (1000 * 60 * 60 * 24))
+      const eventTime = new Date(o.eventoDate + "T12:00:00").getTime();
+      const diffDays = Math.round(
+        (targetTime - eventTime) / (1000 * 60 * 60 * 24),
+      );
 
-      const windowBefore = storeConfig.windowBefore !== undefined ? Number(storeConfig.windowBefore) : 3
-      const windowAfter = storeConfig.windowAfter !== undefined ? Number(storeConfig.windowAfter) : 3
+      const windowBefore =
+        storeConfig.windowBefore !== undefined
+          ? Number(storeConfig.windowBefore)
+          : 3;
+      const windowAfter =
+        storeConfig.windowAfter !== undefined
+          ? Number(storeConfig.windowAfter)
+          : 3;
 
       if (diffDays >= -windowBefore && diffDays <= windowAfter) {
         o.items.forEach((item: any) => {
-          const idStr = item.id.toString()
-          const currentCount = unavailableCounts.get(idStr) || 0
-          unavailableCounts.set(idStr, currentCount + 1)
-        })
+          const idStr = item.id.toString();
+          const currentCount = unavailableCounts.get(idStr) || 0;
+          unavailableCounts.set(idStr, currentCount + 1);
+        });
       }
-    })
+    });
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Catálogo & Inventário</h1>
-          <p className="text-sm text-muted-foreground">{itensParaMostrar.length} peças cadastradas na loja</p>
+          <h1 className="text-xl font-semibold text-foreground">
+            Catálogo & Inventário
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {itensParaMostrar.length} peças cadastradas na loja
+          </p>
         </div>
-        <Button size="sm" className="gap-1.5" onClick={() => { setEditingProduct(null); setSection("cadastro"); }}><Plus size={14} /> Nova Peça</Button>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          onClick={() => {
+            setEditingProduct(null);
+            setSection("cadastro");
+          }}
+        >
+          <Plus size={14} /> Nova Peça
+        </Button>
       </div>
 
       <div className="flex gap-3 flex-wrap items-center bg-white border border-border rounded-xl p-4 shadow-sm">
         <div className="relative flex-1 min-w-[200px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
           <Input
             placeholder="Buscar por nome ou SKU..."
             value={searchTerm}
@@ -1616,7 +1854,15 @@ function SectionEstoque() {
           </SelectContent>
         </Select>
         {(searchTerm || statusFilter !== "todos") && (
-          <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchTerm(""); setStatusFilter("todos"); }}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 text-xs text-muted-foreground"
+            onClick={() => {
+              setSearchTerm("");
+              setStatusFilter("todos");
+            }}
+          >
             Limpar Filtros
           </Button>
         )}
@@ -1627,49 +1873,83 @@ function SectionEstoque() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Peça</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">SKU</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tamanho</th>
-                <th className="text-center px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Estoque</th>
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Condição Física</th>
-                <th className="text-right px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ações</th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Peça
+                </th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  SKU
+                </th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Tamanho
+                </th>
+                <th className="text-center px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Estoque
+                </th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Condição Física
+                </th>
+                <th className="text-right px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.map((item: any) => {
                 const imgSrc = item.images?.[0] || item.image;
-                const finalImg = (typeof imgSrc === 'string' && imgSrc.trim() !== '') ? imgSrc : "/placeholder.jpg";
+                const finalImg =
+                  typeof imgSrc === "string" && imgSrc.trim() !== ""
+                    ? imgSrc
+                    : "/placeholder.jpg";
 
                 const qtyTotal = Number(item.quantity) || 1;
-                const qtyUnavailable = unavailableCounts.get(item.id.toString()) || 0;
+                const qtyUnavailable =
+                  unavailableCounts.get(item.id.toString()) || 0;
                 const qtyAvailable = Math.max(0, qtyTotal - qtyUnavailable);
 
                 return (
-                  <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <tr
+                    key={item.id}
+                    className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                  >
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         <div className="relative w-10 h-12 rounded-md overflow-hidden bg-secondary shrink-0 border border-border/50">
-                          <Image src={finalImg} alt={item.name} fill className="object-cover" sizes="40px" />
+                          <Image
+                            src={finalImg}
+                            alt={item.name}
+                            fill
+                            className="object-cover"
+                            sizes="40px"
+                          />
                         </div>
-                        <span className="font-medium text-foreground">{item.name}</span>
+                        <span className="font-medium text-foreground">
+                          {item.name}
+                        </span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{item.sku}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{item.size}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">
+                      {item.sku}
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">
+                      {item.size}
+                    </td>
                     <td className="px-5 py-3 text-center">
                       <div className="flex flex-col items-center justify-center gap-1">
                         <span className="text-sm font-bold text-foreground">
-                          {qtyAvailable} <span className="text-xs text-muted-foreground font-normal">/ {qtyTotal} livres</span>
+                          {qtyAvailable}{" "}
+                          <span className="text-xs text-muted-foreground font-normal">
+                            / {qtyTotal} livres
+                          </span>
                         </span>
                         {qtyUnavailable > 0 && (
-                           <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-medium leading-none">
-                             {qtyUnavailable} em uso/preparo
-                           </span>
+                          <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-medium leading-none">
+                            {qtyUnavailable} em uso/preparo
+                          </span>
                         )}
                       </div>
                     </td>
                     <td className="px-5 py-3">
-                      {item.stock === 'manutencao' ? (
+                      {item.stock === "manutencao" ? (
                         <span className="bg-red-50 text-red-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center w-fit gap-1">
                           <AlertCircle size={12} /> Inativo/Manutenção
                         </span>
@@ -1680,12 +1960,11 @@ function SectionEstoque() {
                       )}
                     </td>
                     <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
-                      
-                      {item.stock === 'manutencao' && (
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="h-7 text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50" 
+                      {item.stock === "manutencao" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                           onClick={() => handleAtivarPeca(item.id)}
                           title="Devolver para o Catálogo"
                         >
@@ -1693,23 +1972,47 @@ function SectionEstoque() {
                         </Button>
                       )}
 
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-colors" onClick={() => { setEditingProduct(item); setSection("cadastro") }} title="Editar Peça">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                        onClick={() => {
+                          setEditingProduct(item);
+                          setSection("cadastro");
+                        }}
+                        title="Editar Peça"
+                      >
                         <Pencil size={14} />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors" onClick={() => handleDelete(item.id)} title="Apagar Peça">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                        onClick={() => handleDelete(item.id)}
+                        title="Apagar Peça"
+                      >
                         <Trash2 size={14} />
                       </Button>
                     </td>
                   </tr>
-                )
+                );
               })}
-              {filteredItems.length === 0 && <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhuma peça encontrada com estes filtros.</td></tr>}
+              {filteredItems.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-5 py-10 text-center text-sm text-muted-foreground"
+                  >
+                    Nenhuma peça encontrada com estes filtros.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
     </div>
-  )
+  );
 }
 // ─── CADASTRO DE PRODUTO (COMPLETO) ───────────────────────────────────────────
 function SectionCadastro() {
@@ -2615,33 +2918,27 @@ export default function AdminPage() {
   useEffect(() => {
     async function carregarDadosReais() {
       try {
-        const [
-          resPedidos,
-          resProdutos,
-          resConfig,
-          resCategorias,
-          resColecoes,
-          resFin,
-        ] = await Promise.all([
-          fetch("/api/pedidos"),
-          fetch("/api/produtos"),
-          fetch("/api/configuracoes"),
-          fetch("/api/categorias"),
-          fetch("/api/colecoes"),
-          fetch("/api/financeiro"),
-        ]);
+        const [resPed, resProd, resConf, resCategorias, resColecoes, resFin] =
+          await Promise.all([
+            fetch("/api/pedidos"),
+            fetch("/api/produtos"),
+            fetch("/api/configuracoes"),
+            fetch("/api/categorias"),
+            fetch("/api/colecoes"),
+            fetch("/api/financeiro"),
+          ]);
 
-        if (resPedidos.ok) {
-          const dados = await resPedidos.json();
+        if (resPed.ok) {
+          const dados = await resPed.json();
           if (Array.isArray(dados)) setOrders(dados);
         }
-        if (resProdutos.ok) {
-          const dados = await resProdutos.json();
+        if (resProd.ok) {
+          const dados = await resProd.json();
           if (Array.isArray(dados)) setProducts(dados);
         }
-        if (resConfig.ok) {
-          const dados = await resConfig.json();
-          if (dados && !dados.error) setStoreConfig(dados);
+        if (resConf.ok) {
+          const dados = await resConf.json();
+          setStoreConfig(dados);
         }
         if (resCategorias.ok) {
           const dados = await resCategorias.json();
@@ -2659,7 +2956,17 @@ export default function AdminPage() {
         console.error("Erro ao carregar do MySQL:", error);
       }
     }
+
+    // 1. Carrega tudo imediatamente ao abrir o painel
     carregarDadosReais();
+
+    // 2. MÁGICA DO TEMPO REAL: Atualiza tudo silenciosamente a cada 5 segundos
+    const intervaloEmTempoReal = setInterval(() => {
+      carregarDadosReais();
+    }, 5000);
+
+    // 3. Limpa a memória se a Helena fechar o painel
+    return () => clearInterval(intervaloEmTempoReal);
   }, [
     setOrders,
     setProducts,

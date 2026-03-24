@@ -251,9 +251,9 @@ export function ModalPedido() {
           <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
           <div className="flex items-center gap-3">
             <Button onClick={handleSalvar} variant="outline" disabled={loading} className="gap-2"><Save size={16} /> Salvar Alterações</Button>
-            <Button onClick={handleAprovarContrato} disabled={loading} className="gap-2 px-6 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md">
+            {/* <Button onClick={handleAprovarContrato} disabled={loading} className="gap-2 px-6 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md">
               <FileSignature size={16} /> Aprovar / Gerar Contrato
-            </Button>
+            </Button> */}
           </div>
         </div>
 
