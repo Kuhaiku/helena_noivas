@@ -2,10 +2,10 @@
   "name": "my-project",
   "version": "0.1.0",
   "private": true,
- "scripts": {
+  "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node .next/standalone/server.js",
+    "start": "next start",
     "lint": "eslint ."
   },
   "dependencies": {

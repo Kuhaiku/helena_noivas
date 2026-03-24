@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone", 
+  // REMOVA A LINHA OUTPUT STANDALONE
   typescript: {
     ignoreBuildErrors: true,
   },
