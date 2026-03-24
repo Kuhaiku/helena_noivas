@@ -218,8 +218,10 @@ export default function CheckoutPage() {
 
   // Renderização do Passo 2 (Sucesso)
   if (step === 2) {
-    const mensagem = `Olá, Helena Noivas! Gostaria de confirmar o meu agendamento de prova realizado no site. (Pedido #${orderId})`
-    const numeroWhatsApp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5522999990000"
+    const storeName = process.env.NEXT_PUBLIC_STORE_NAME;
+    const numeroWhatsApp = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+    
+    const mensagem = `Olá, ${storeName}! Gostaria de confirmar o meu agendamento de prova realizado no site. (Pedido #${orderId})`;
     const whatsappUrl = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
 
     return (

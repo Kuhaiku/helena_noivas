@@ -105,11 +105,15 @@ export default function ColecoesPage() {
 
       <footer className="border-t border-border bg-secondary/30 py-10 px-4 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <span className="font-serif text-lg tracking-widest text-foreground">
-            HELENA<span className="text-primary font-light ml-1">NOIVAS</span>
+          <span className="font-serif text-lg tracking-widest text-foreground uppercase">
+            {/* Puxa o nome e divide-o pelo espaço em branco */}
+            {(process.env.NEXT_PUBLIC_STORE_NAME || "").split(" ")[0]}
+            <span className="text-primary font-light ml-1">
+              {(process.env.NEXT_PUBLIC_STORE_NAME || "").split(" ").slice(1).join(" ")}
+            </span>
           </span>
           <p className="text-xs text-muted-foreground leading-relaxed text-center md:text-right">
-            Rio de Janeiro, RJ &nbsp;·&nbsp; @helenanoivasrj
+            {process.env.NEXT_PUBLIC_STORE_LOCATION} &nbsp;·&nbsp; {process.env.NEXT_PUBLIC_STORE_INSTAGRAM}
           </p>
         </div>
       </footer>

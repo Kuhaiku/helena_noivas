@@ -30,10 +30,11 @@ export function AdminSidebar() {
   };
 
   return (
-    <aside className="w-64 bg-white border-r border-border h-screen sticky top-0 flex flex-col hidden md:flex shrink-0 shadow-sm">
+      <aside className="w-64 bg-white border-r border-border h-screen sticky top-0 flex flex-col hidden md:flex shrink-0 shadow-sm">
       <div className="h-16 flex items-center px-6 border-b border-border bg-secondary/10">
-        <span className="font-serif text-lg tracking-widest text-foreground">
-          HELENA<span className="text-primary font-light ml-1">ADMIN</span>
+        <span className="font-serif text-lg tracking-widest text-foreground uppercase">
+          {process.env.NEXT_PUBLIC_ADMIN_NAME}
+          <span className="text-primary font-light ml-1">ADMIN</span>
         </span>
       </div>
 
