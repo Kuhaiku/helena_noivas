@@ -4,6 +4,7 @@ import { useState, useEffect, Fragment } from "react";
 import { useAdminStore } from "@/lib/admin-store";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { MetricCard } from "@/components/admin/metric-card";
+import { ModalLiberacao } from "@/components/admin/modal-liberacao"
 import {
   OrderStatusBadge,
   StockStatusBadge,
@@ -539,16 +540,16 @@ function SectionPedidos() {
   );
 }
 
+
 // ─── ABA DE LOGÍSTICA & GIRO DE PEÇAS ──────────────────────────────────────────
 function SectionContratos() {
-  const { orders, updateOrderStatus, updateProduct } = useAdminStore();
+  // 1. Adicionado o updateOrderFinancial aqui para o Modal poder injetar o dinheiro
+  const { orders, updateOrderStatus, updateProduct, updateOrderFinancial } = useAdminStore();
 
-  // Filtramos apenas os contratos que afetam a logística atual
   const contratos = orders
     .filter((o) => o.status === "confirmado" || o.status === "em_uso")
     .sort((a, b) => (a.eventoDate || "").localeCompare(b.eventoDate || ""));
 
-  // MÁGICA: Transformamos os contratos numa lista plana de PEÇAS ALUGADAS
   const pecasNaRua = contratos
     .flatMap((order) =>
       order.items.map((item) => ({
@@ -568,34 +569,14 @@ function SectionContratos() {
     "livre" | "manutencao"
   >("livre");
   const [multa, setMulta] = useState(0);
-
-  // ESTADO PARA CONTROLAR A LINHA EXPANDIDA (O COMPROVANTE)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
-  const registrarRetirada = async (order: any) => {
-    const pendente = order.totalValue - (order.signalPaid || 0);
-    if (pendente > 0) {
-      if (
-        !confirm(
-          `ATENÇÃO! A cliente ainda deve R$ ${pendente.toFixed(2)}. Tem certeza que deseja liberar os vestidos sem registrar o pagamento?`,
-        )
-      )
-        return;
-    } else {
-      if (
-        !confirm(
-          "Confirmar a retirada das peças pela cliente? O status mudará para 'Em Uso'.",
-        )
-      )
-        return;
-    }
+  // 2. ESTADO NOVO PARA O MODAL DE LIBERAÇÃO
+  const [pedidoParaLiberar, setPedidoParaLiberar] = useState<any>(null);
 
-    const res = await fetch(`/api/pedidos?id=${order.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...order, status: "em_uso" }),
-    });
-    if (res.ok) updateOrderStatus(order.id, "em_uso");
+  // 3. FUNÇÃO SIMPLIFICADA (Apenas abre o modal)
+  const registrarRetirada = (order: any) => {
+    setPedidoParaLiberar(order);
   };
 
   const registrarDevolucao = async () => {
@@ -608,7 +589,6 @@ function SectionContratos() {
       });
       updateOrderStatus(devolvendo.id, "concluido");
 
-      // Atualiza o estoque das peças devolvidas (Livre ou Manutenção)
       for (const item of devolvendo.items) {
         await fetch(`/api/produtos?id=${item.id}`, {
           method: "PUT",
@@ -672,7 +652,6 @@ function SectionContratos() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── VISÃO 1: CONTRATOS COM EXPANSÃO (COMPROVANTE) ── */}
         <TabsContent
           value="contratos"
           className="m-0 focus-visible:outline-none"
@@ -807,7 +786,6 @@ function SectionContratos() {
                         </td>
                       </tr>
 
-                      {/* GAVETA EXPANDIDA (COMPROVANTE) */}
                       {isExpanded && (
                         <tr className="bg-muted/10 border-b border-border shadow-inner">
                           <td colSpan={6} className="px-8 py-6">
@@ -896,7 +874,6 @@ function SectionContratos() {
           </div>
         </TabsContent>
 
-        {/* ── VISÃO 2: GIRO DE PEÇAS INDIVIDUAIS ── */}
         <TabsContent value="pecas" className="m-0 focus-visible:outline-none">
           <div className="bg-white rounded-xl border border-border overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
@@ -1063,6 +1040,20 @@ function SectionContratos() {
           </div>
         </div>
       )}
+
+      {/* 4. O NOSSO NOVO MODAL DE LIBERAÇÃO RENDENRIZADO AQUI! */}
+      <ModalLiberacao 
+        open={!!pedidoParaLiberar} 
+        onClose={() => setPedidoParaLiberar(null)}
+        order={pedidoParaLiberar}
+        onSuccess={(pedidoAtualizado: any) => {
+          updateOrderStatus(pedidoAtualizado.id, "em_uso");
+          if (updateOrderFinancial) {
+             updateOrderFinancial(pedidoAtualizado.id, pedidoAtualizado);
+          }
+          setPedidoParaLiberar(null);
+        }}
+      />
     </div>
   );
 }

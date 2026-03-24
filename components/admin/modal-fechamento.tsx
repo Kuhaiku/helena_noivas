@@ -50,8 +50,7 @@ export function ModalFechamento() {
   const grandTotal = total + fees
   const remaining = grandTotal - signalPaid
 
-  const handleConfirm = async () => {
-    // 1. Obriga a preencher a data do evento para poder bloquear
+ const handleConfirm = async () => {
     if (!eventoDate) {
       setBlockedErrors(["A Data do Casamento/Evento é obrigatória para fechar o contrato."])
       return
@@ -62,30 +61,26 @@ export function ModalFechamento() {
     const errosEncontrados: string[] = []
 
     try {
-      // 2. Bate na API para cada peça do contrato para ver se está livre
-      // O "?t=Date.now()" impede que o navegador use cache, garantindo o resultado real na hora
+      // 1. Verifica disponibilidade de estoque
       for (const item of selectedOrder.items) {
         const res = await fetch(`/api/disponibilidade?produtoId=${item.id}&t=${Date.now()}`)
-        
         if (res.ok) {
           const data = await res.json()
           if (data.error) {
             errosEncontrados.push(`Erro ao verificar a peça ${item.sku}.`)
           } else if (data.blockedDates && data.blockedDates.includes(eventoDate)) {
-            // SE A DATA ESTIVER NOS DIAS BLOQUEADOS DA PEÇA:
             errosEncontrados.push(`A peça "${item.name}" (${item.sku}) já está alugada para o dia ${eventoDate.split('-').reverse().join('/')}.`)
           }
         }
       }
 
-      // 3. SE HOUVER CONFLITO, BLOQUEIA TUDO E MOSTRA O ERRO!
       if (errosEncontrados.length > 0) {
         setBlockedErrors(errosEncontrados)
         setIsChecking(false)
         return 
       }
 
-      // 4. SE ESTIVER TUDO LIVRE, SALVA NO BANCO E FECHA O CONTRATO
+      // 2. Prepara os dados do pedido para salvar
       const dadosAtualizados = {
         ...selectedOrder,
         eventoDate,
@@ -97,25 +92,40 @@ export function ModalFechamento() {
         status: "confirmado"
       }
 
-      // Salva no banco de dados MySQL
+      // 3. Salva o pedido atualizado no banco
       await fetch(`/api/pedidos?id=${selectedOrder.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dadosAtualizados)
       })
 
-      // Atualiza o Zustand (Frontend)
+      // 4. MÁGICA FINANCEIRA: Registra a entrada do "Sinal" automaticamente no Fluxo de Caixa
+      if (signalPaid > 0) {
+        await fetch('/api/financeiro', {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "entrada",
+            description: `Sinal (Reserva) - Contrato #${selectedOrder.id} - ${selectedOrder.clientName}`,
+            amount: signalPaid,
+            date: new Date().toISOString().split('T')[0],
+            category: "Aluguel",
+            orderId: selectedOrder.id
+          })
+        })
+      }
+
+      // 5. Atualiza o visual e fecha o modal
       updateOrderFinancial(selectedOrder.id, dadosAtualizados as any)
       updateOrderStatus(selectedOrder.id, "confirmado")
       setFinancialModalOpen(false)
 
     } catch (error) {
-      setBlockedErrors(["Erro de rede ao verificar o estoque. Tente novamente."])
+      setBlockedErrors(["Erro de rede ao processar o contrato. Tente novamente."])
     } finally {
       setIsChecking(false)
     }
   }
-
   return (
     <Dialog open={isFinancialModalOpen} onOpenChange={setFinancialModalOpen}>
       <DialogContent className="max-w-md">
