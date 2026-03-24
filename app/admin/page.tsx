@@ -1594,7 +1594,8 @@ function SectionFinanceiro() {
   );
 }
 
-// ─── CONFIGURAÇÕES (COM TEMPLATE DE CONTRATO) ────────────────────────────────
+
+// ─── CONFIGURAÇÕES (COM TEMPLATE DE CONTRATO E HORÁRIOS) ────────────────────────────────
 function SectionConfiguracoes() {
   const { storeConfig, setStoreConfig } = useAdminStore();
   const [config, setConfig] = useState(storeConfig);
@@ -1706,9 +1707,16 @@ function SectionConfiguracoes() {
           />
         </div>
       </div>
-      <Button onClick={handleSave} className="w-fit bg-primary">
-        <Save size={16} className="mr-2" /> Salvar Configurações
+      
+      <Button onClick={handleSave} className="w-fit bg-primary mb-4">
+        <Save size={16} className="mr-2" /> Salvar Configurações Acima
       </Button>
+
+      {/* ─── INJEÇÃO DO COMPONENTE DE HORÁRIOS AQUI ─── */}
+      <div className="border-t border-border pt-6 mt-2">
+        <ConfigHorarios />
+      </div>
+
     </div>
   );
 }
