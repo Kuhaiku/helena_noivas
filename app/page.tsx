@@ -21,6 +21,15 @@ export default function VitrinePage() {
 
   const { collections, setCollections, products, setProducts, categories, setCategories, orders, setOrders, storeConfig, setStoreConfig } = useAdminStore()
 
+  // ── VARIÁVEIS WHITE LABEL ──
+  const storeName = process.env.NEXT_PUBLIC_STORE_NAME || "Nossa Loja"
+  const storeCity = process.env.NEXT_PUBLIC_STORE_LOCATION || "Cidade, Estado"
+  const instagramHandle = process.env.NEXT_PUBLIC_STORE_INSTAGRAM || "@instagram"
+  
+  const nameParts = storeName.split(" ")
+  const nameFirst = nameParts[0]
+  const nameRest = nameParts.slice(1).join(" ")
+
   useEffect(() => {
     const seen = sessionStorage.getItem("helena-onboarding")
     if (!seen) {
@@ -70,14 +79,12 @@ export default function VitrinePage() {
   }
 
   // ── LÓGICA INTELIGENTE DE DISPONIBILIDADE (CORRIGIDA) ──
-  // Usamos um Map para contar quantas unidades de cada vestido estão alugadas para a data
   const unavailableCounts = new Map<string, number>()
   
   if (weddingDate && storeConfig) {
     const targetTime = new Date(weddingDate + "T12:00:00").getTime()
     
     orders.forEach(o => {
-      // Bloqueia tanto o que está 'confirmado' quanto o que já saiu na rua ('em_uso')
       if (o.status !== 'confirmado' && o.status !== 'em_uso') return
       if (!o.eventoDate) return
       
@@ -98,19 +105,14 @@ export default function VitrinePage() {
     })
   }
 
-  // Filtra as peças cruzando a quantidade alugada vs quantidade em estoque físico
   const visibleDresses = products.filter((d) => {
-    // Esconde se o adm marcou como oculto manualmente
     if (d.hidden) return false
-    
-    // Esconde se o adm forçou o status da peça inteira para manutenção
     if (d.stock === 'manutencao') return false 
 
     const idStr = d.id.toString()
     const rentedCount = unavailableCounts.get(idStr) || 0
     const stockQuantity = Number(d.quantity) || 1
     
-    // Só exibe a peça se houver MAIS quantidade no estoque do que a quantidade que já está alugada!
     return rentedCount < stockQuantity
   })
   
@@ -149,7 +151,7 @@ export default function VitrinePage() {
                 Encontre o vestido dos seus sonhos
               </h1>
               <p className="text-base text-muted-foreground leading-relaxed max-w-sm">
-                Escolha online, experimente pessoalmente. Nossa equipe de consultoras estará pronta para te receber.
+                Escolha online, experimente pessoalmente. Nossa equipe de consultoras estará pronta para a receber.
               </p>
             </div>
             <div className="relative h-72 md:h-full md:min-h-[560px] order-1 md:order-2">
@@ -202,7 +204,6 @@ export default function VitrinePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
         <div className="flex flex-col md:flex-row md:items-center gap-4 bg-white p-3 rounded-2xl border border-border shadow-sm">
           
-          {/* Botão para abrir o Modal de Calendário */}
           <button
             onClick={() => setOnboardingOpen(true)}
             className={cn(
@@ -219,10 +220,8 @@ export default function VitrinePage() {
             }
           </button>
 
-          {/* Divisor Visual (apenas visível em ecrãs maiores) */}
           <div className="hidden md:block w-px h-6 bg-border mx-2" />
 
-          {/* Categorias */}
           <div className="flex items-center gap-2 flex-wrap">
             {categoriasDinamicas.map((cat) => (
               <button
@@ -239,10 +238,8 @@ export default function VitrinePage() {
               </button>
             ))}
           </div>
-
         </div>
 
-        {/* Aviso de filtro ativo */}
         {weddingDate && (
           <div className="mt-4 flex items-center justify-between gap-4 text-xs font-medium text-primary bg-primary/10 px-5 py-3 rounded-xl border border-primary/20 w-full max-w-fit">
             <span className="leading-relaxed">
@@ -260,7 +257,7 @@ export default function VitrinePage() {
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
         {loading ? (
-          <div className="flex justify-center py-20 text-muted-foreground text-sm">Carregando a coleção exclusiva...</div>
+          <div className="flex justify-center py-20 text-muted-foreground text-sm">A carregar o catálogo exclusivo...</div>
         ) : filtered.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {filtered.map((dress) => (
@@ -282,10 +279,15 @@ export default function VitrinePage() {
         )}
       </section>
 
+      {/* ── Footer ── */}
       <footer id="contato" className="border-t border-border bg-secondary/30 py-10 px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <span className="font-serif text-lg tracking-widest text-foreground">HELENA<span className="text-primary font-light ml-1">NOIVAS</span></span>
-          <p className="text-xs text-muted-foreground leading-relaxed text-center md:text-right">Rio de Janeiro, RJ &nbsp;·&nbsp; @helenanoivasrj</p>
+          <span className="font-serif text-lg tracking-widest text-foreground uppercase">
+            {nameFirst}<span className="text-primary font-light ml-1">{nameRest}</span>
+          </span>
+          <p className="text-xs text-muted-foreground leading-relaxed text-center md:text-right">
+            {storeCity} &nbsp;·&nbsp; {instagramHandle}
+          </p>
         </div>
       </footer>
 

@@ -16,10 +16,14 @@ const manrope = Manrope({
   display: 'swap',
 })
 
+// ── PUXAR VARIÁVEIS DO .ENV PARA O SEO ──
+const storeName = process.env.NEXT_PUBLIC_STORE_NAME || "Loja"
+const storeSlogan = process.env.NEXT_PUBLIC_STORE_SLOGAN || "Catálogo de Vestidos"
+const storeDescription = process.env.NEXT_PUBLIC_STORE_DESCRIPTION || "Catálogo exclusivo. Escolha online e agende a sua prova presencial."
+
 export const metadata: Metadata = {
-  title: 'Helena Noivas — Encontre o Vestido dos Seus Sonhos',
-  description:
-    'Catálogo exclusivo de vestidos de noiva. Escolha online e agende sua prova presencial com nossas consultoras.',
+  title: `${storeName} — ${storeSlogan}`,
+  description: storeDescription,
   generator: 'v0.app',
   icons: {
     icon: [

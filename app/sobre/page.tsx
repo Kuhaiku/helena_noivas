@@ -16,6 +16,25 @@ export default function SobrePage() {
     router.push("/checkout")
   }
 
+  // ── PUXAR VARIÁVEIS DO .ENV (COM FALLBACKS DE SEGURANÇA) ──
+  const storeName = process.env.NEXT_PUBLIC_STORE_NAME || "A Nossa Loja"
+  const storeCity = process.env.NEXT_PUBLIC_STORE_LOCATION || "Cidade, Estado"
+  const storeAddress = process.env.NEXT_PUBLIC_STORE_ADDRESS || "Endereço não informado"
+  const storePhone = process.env.NEXT_PUBLIC_STORE_PHONE_DISPLAY || "(00) 00000-0000"
+  const instagramHandle = process.env.NEXT_PUBLIC_STORE_INSTAGRAM || "@instagram"
+  const instagramUrl = process.env.NEXT_PUBLIC_STORE_INSTAGRAM_URL || "#"
+  const mapUrl = process.env.NEXT_PUBLIC_STORE_MAP_URL || "about:blank"
+  const aboutTitle = process.env.NEXT_PUBLIC_ABOUT_TITLE || "Nossa História"
+  const aboutSubtitle = process.env.NEXT_PUBLIC_ABOUT_SUBTITLE || ""
+  const aboutP1 = process.env.NEXT_PUBLIC_ABOUT_P1 || `A ${storeName} é um espaço dedicado ao seu sonho.`
+  const aboutP2 = process.env.NEXT_PUBLIC_ABOUT_P2 || ""
+  const aboutP3 = process.env.NEXT_PUBLIC_ABOUT_P3 || ""
+
+  // Lógica para dividir o nome no Footer (ex: HELENA em negrito, NOIVAS com cor)
+  const nameParts = storeName.split(" ")
+  const nameFirst = nameParts[0]
+  const nameRest = nameParts.slice(1).join(" ")
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* ── Cabeçalho ── */}
@@ -27,8 +46,8 @@ export default function SobrePage() {
         <section className="relative w-full h-[300px] md:h-[400px] bg-secondary/50 flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 z-0">
             <Image 
-              src="/images/vestido-aurora.jpg" /* Podes trocar por uma foto da fachada da loja */
-              alt="Helena Noivas Interior" 
+              src="/images/helenafaxada.png" /* Podes trocar por uma foto da fachada da loja */
+              alt={`Interior ${storeName}`} 
               fill 
               className="object-cover object-center opacity-30 blur-[2px]" 
               priority
@@ -46,26 +65,19 @@ export default function SobrePage() {
             <div className="relative aspect-[4/5] rounded-2xl overflow-hidden shadow-lg">
               <Image 
                 src="/images/hero-noiva.jpg" /* Podes trocar por uma foto da dona/equipe */
-                alt="História Helena Noivas" 
+                alt={`História ${storeName}`} 
                 fill 
                 className="object-cover object-top" 
               />
             </div>
-            <div className="flex flex-col gap-6">
+         <div className="flex flex-col gap-6">
               <h2 className="font-serif text-3xl md:text-4xl text-foreground leading-snug">
-                Vestindo sonhos <br/>
-                <span className="text-primary italic font-light">desde o primeiro sim.</span>
+                {aboutTitle} {aboutSubtitle && <><br/><span className="text-primary italic font-light">{aboutSubtitle}</span></>}
               </h2>
               <div className="space-y-4 text-muted-foreground text-sm md:text-base leading-relaxed">
-                <p>
-                  A Helena Noivas nasceu do desejo de transformar a escolha do vestido de noiva num momento tão mágico e inesquecível quanto o próprio dia do casamento. Localizada no coração de Araruama, a nossa loja foi pensada para ser um refúgio de tranquilidade e beleza para as noivas da Região dos Lagos.
-                </p>
-                <p>
-                  Sabemos que cada mulher é única e carrega consigo uma história de amor ímpar. Por isso, a nossa curadoria de vestidos é feita com extrema dedicação, procurando não apenas acompanhar as tendências, mas oferecer peças intemporais, com rendas exclusivas e caimentos perfeitos.
-                </p>
-                <p>
-                  A nossa missão vai muito além de alugar um vestido. Queremos fazer parte da sua história, oferecendo um atendimento acolhedor, transparente e apaixonado. Aqui, o seu sonho é desenhado em cada detalhe.
-                </p>
+                {aboutP1 && <p>{aboutP1}</p>}
+                {aboutP2 && <p>{aboutP2}</p>}
+                {aboutP3 && <p>{aboutP3}</p>}
               </div>
             </div>
           </div>
@@ -95,8 +107,7 @@ export default function SobrePage() {
                     <div>
                       <p className="text-sm font-semibold text-foreground mb-1">Endereço</p>
                       <p className="text-sm text-muted-foreground leading-relaxed">
-                        R. Bernardo Vasconcelos, 116 - Centro<br/>
-                        Araruama - RJ, 28979-192
+                        {storeAddress}
                       </p>
                     </div>
                   </div>
@@ -107,8 +118,7 @@ export default function SobrePage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-foreground mb-1">Telefone / WhatsApp</p>
-                      <p className="text-sm text-muted-foreground">(22)98167-5166
-          </p>
+                      <p className="text-sm text-muted-foreground">{storePhone}</p>
                     </div>
                   </div>
 
@@ -126,8 +136,8 @@ export default function SobrePage() {
               </div>
 
               <div className="pt-6 border-t border-border">
-                <a href="https://www.instagram.com/helenanoivasrj/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors">
-                  <Instagram size={18} /> @helenanoivasrj
+                <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors">
+                  <Instagram size={18} /> {instagramHandle}
                 </a>
               </div>
             </div>
@@ -135,7 +145,7 @@ export default function SobrePage() {
             {/* Mapa do Google (Iframe) */}
             <div className="w-full lg:w-2/3 min-h-[400px] lg:min-h-full bg-muted relative">
               <iframe 
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1426.168009476581!2d-42.3407323668705!3d-22.871880490004198!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x97695c91367e83%3A0x6e52b050ddd83121!2sAteli%C3%AA%20Helena%20Noivas!5e1!3m2!1spt-BR!2sbr!4v1773943177879!5m2!1spt-BR!2sbr"
+                src={mapUrl}
                 className="absolute inset-0 w-full h-full border-0"
                 allowFullScreen={true} 
                 loading="lazy" 
@@ -150,11 +160,11 @@ export default function SobrePage() {
       {/* ── Footer ── */}
       <footer className="border-t border-border bg-secondary/30 py-10 px-4 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <span className="font-serif text-lg tracking-widest text-foreground">
-            HELENA<span className="text-primary font-light ml-1">NOIVAS</span>
+          <span className="font-serif text-lg tracking-widest text-foreground uppercase">
+            {nameFirst}<span className="text-primary font-light ml-1">{nameRest}</span>
           </span>
           <p className="text-xs text-muted-foreground leading-relaxed text-center md:text-right">
-            Rio de Janeiro, RJ &nbsp;·&nbsp; @helenanoivasrj &nbsp;·&nbsp; (22)98167-5166
+            {storeCity} &nbsp;·&nbsp; {instagramHandle} &nbsp;·&nbsp; {storePhone}
           </p>
         </div>
       </footer>

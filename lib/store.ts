@@ -40,7 +40,7 @@ export const useCartStore = create<CartStore>()(
       clearCart: () => set({ items: [] }),
     }),
     {
-      name: "helena-cart-storage", // Nome usado para guardar na memória do navegador
+      name: "loja-cart-storage", // Nome genérico e invisível para o White Label
     }
   )
 )

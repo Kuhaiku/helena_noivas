@@ -12,6 +12,12 @@ export function Header({ onCartClick }: HeaderProps) {
   const { items } = useCartStore()
   const [menuOpen, setMenuOpen] = useState(false)
 
+  // ── PUXAR NOME DA LOJA DO .ENV ──
+  const storeName = process.env.NEXT_PUBLIC_STORE_NAME || "Nossa Loja"
+  const nameParts = storeName.split(" ")
+  const nameFirst = nameParts[0]
+  const nameRest = nameParts.slice(1).join(" ")
+
   return (
     <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-md border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -25,10 +31,10 @@ export function Header({ onCartClick }: HeaderProps) {
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
 
-          {/* Logo centralizado */}
+          {/* Logo centralizado dinâmico */}
           <a href="/" className="absolute left-1/2 -translate-x-1/2">
-            <span className="font-serif text-xl md:text-2xl tracking-widest text-foreground select-none">
-              HELENA<span className="text-primary font-light ml-1">NOIVAS</span>
+            <span className="font-serif text-xl md:text-2xl tracking-widest text-foreground select-none uppercase">
+              {nameFirst}<span className="text-primary font-light ml-1">{nameRest}</span>
             </span>
           </a>
 
@@ -54,7 +60,6 @@ export function Header({ onCartClick }: HeaderProps) {
           <a href="/" className="hover:text-primary transition-colors" onClick={() => setMenuOpen(false)}>Inicio</a>
           <a href="/colecoes" className="hover:text-primary transition-colors" onClick={() => setMenuOpen(false)}>Coleção</a>
           <a href="/sobre" className="hover:text-primary transition-colors" onClick={() => setMenuOpen(false)}>Sobre Nós</a>
-          
         </nav>
       )}
     </header>

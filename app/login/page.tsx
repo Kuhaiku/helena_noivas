@@ -43,7 +43,11 @@ export default function LoginPage() {
     <div className="min-h-screen bg-secondary/30 flex items-center justify-center p-4">
       <div className="bg-white max-w-md w-full rounded-2xl shadow-xl border border-border overflow-hidden">
         <div className="bg-primary/5 p-8 text-center border-b border-border">
-          <span className="font-serif text-3xl tracking-widest text-foreground">HELENA<span className="text-primary font-light ml-1">ADMIN</span></span>
+          {/* ── NOME DINÂMICO VINDO DO .ENV ── */}
+          <span className="font-serif text-3xl tracking-widest text-foreground uppercase">
+            {process.env.NEXT_PUBLIC_ADMIN_NAME || "ADMIN"}
+            <span className="text-primary font-light ml-1">ADMIN</span>
+          </span>
           <p className="text-sm text-muted-foreground mt-2">Sistema de Gestão e ERP</p>
         </div>
 
