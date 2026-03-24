@@ -3,18 +3,22 @@ import { query } from "@/lib/db";
 
 export async function GET() {
   try {
+    // 1. Busca todos os pedidos (sem ORDER BY para evitar o erro de memória)
     const sql = `SELECT * FROM pedidos`;
     const resultados: any = await query(sql);
 
+    // 2. Ordena os pedidos com JavaScript
     resultados.sort((a: any, b: any) => {
       const dataA = a.criado_em ? new Date(a.criado_em).getTime() : 0;
       const dataB = b.criado_em ? new Date(b.criado_em).getTime() : 0;
       return dataB - dataA;
     });
 
+    // 3. Busca os produtos e as imagens usando os nomes reais das tabelas e colunas
     const produtosRaw: any = await query("SELECT id, preco_aluguel FROM produtos");
     const imagensRaw: any = await query("SELECT produto_id, url FROM produto_imagens");
 
+    // 4. Cria o mapa cruzando os produtos com as suas imagens
     const produtosMap = new Map();
     produtosRaw.forEach((p: any) => {
       const fotosDoProduto = imagensRaw
@@ -32,6 +36,7 @@ export async function GET() {
       
       const itemsCompletos = itensRaw.map((item: any) => {
         const infoEstoque = produtosMap.get(item.id.toString());
+        
         return {
           ...item,
           image: item.image || infoEstoque?.images[0] || "/placeholder.jpg",
@@ -56,9 +61,6 @@ export async function GET() {
         contratoTexto: p.contrato_texto || "",
         totalValue: Number(p.totalValue) || 0,
         signalPaid: Number(p.signalPaid) || 0,
-        cautionValue: Number(p.cautionValue) || 500, // NOVO
-        quitDate: p.quitDate || "",                  // NOVO
-        discountTotal: Number(p.discountTotal) || 0, // NOVO
         createdAt: p.criado_em ? new Date(p.criado_em).toISOString() : "",
       };
     });
@@ -66,7 +68,10 @@ export async function GET() {
     return NextResponse.json(pedidosFormatados);
   } catch (error) {
     console.error("Erro ao buscar pedidos:", error);
-    return NextResponse.json({ error: "Falha ao buscar pedidos" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Falha ao buscar pedidos" },
+      { status: 500 },
+    );
   }
 }
 
@@ -75,6 +80,7 @@ export async function POST(request: Request) {
     const data = await request.json();
     const sql = `INSERT INTO pedidos (clientName, clientPhone, clientEmail, provaDate, provaTime, eventoDate, status, totalValue, itens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
     
+    // Armazenamos o JSON simplificado para manter o banco leve
     const result: any = await query(sql, [
       data.clientName,
       data.clientPhone,
@@ -87,6 +93,7 @@ export async function POST(request: Request) {
       JSON.stringify(data.items || []),
     ]);
 
+    // Usamos LAST_INSERT_ID() para pegar o ID correto da inserção no MySQL
     const lastId: any = await query("SELECT LAST_INSERT_ID() as id");
     return NextResponse.json({ success: true, id: lastId[0].id.toString() });
   } catch (error) {
@@ -107,7 +114,7 @@ export async function PUT(request: Request) {
       clientName = ?, clientPhone = ?, clientEmail = ?, cpf = ?, rg = ?, 
       endereco = ?, provaDate = ?, provaTime = ?, eventoDate = ?, 
       status = ?, totalValue = ?, signalPaid = ?, itens = ?, 
-      taxas = ?, contrato_texto = ?, cautionValue = ?, quitDate = ?, discountTotal = ?
+      taxas = ?, contrato_texto = ? 
       WHERE id = ?`;
 
     await query(sql, [
@@ -126,9 +133,6 @@ export async function PUT(request: Request) {
       JSON.stringify(data.items || []),
       JSON.stringify(data.taxas || []),
       data.contratoTexto || "",
-      data.cautionValue || 500, // NOVO
-      data.quitDate || null,    // NOVO
-      data.discountTotal || 0,  // NOVO
       id,
     ]);
 
