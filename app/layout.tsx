@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Playfair_Display, Manrope } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { CookieBanner } from "@/components/helena/cookie-banner"
+import { siteConfig } from "@/lib/site-config"
 import './globals.css'
 
 const playfair = Playfair_Display({
@@ -22,17 +23,12 @@ const storeSlogan = process.env.NEXT_PUBLIC_STORE_SLOGAN || "Catálogo de Vestid
 const storeDescription = process.env.NEXT_PUBLIC_STORE_DESCRIPTION || "Catálogo exclusivo. Escolha online e agende a sua prova presencial."
 
 export const metadata: Metadata = {
-  title: `${storeName} — ${storeSlogan}`,
-  description: storeDescription,
-  generator: 'v0.app',
+  title: siteConfig.nomeLoja,
+  description: siteConfig.description,
   icons: {
-    icon: [
-      { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
-      { url: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' },
-      { url: '/icon.svg', type: 'image/svg+xml' },
-    ],
-    apple: '/apple-icon.png',
-  },
+    icon: process.env.NEXT_PUBLIC_FAVICON_URL || "/images/icon.svg",
+    apple: process.env.NEXT_PUBLIC_FAVICON_URL || "/images/apple-icon.png",
+  }
 }
 
 export default function RootLayout({

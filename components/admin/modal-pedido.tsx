@@ -8,6 +8,7 @@ import { X, Trash2, Plus, Save, Calendar, Clock, User, Phone, FileSignature, Sea
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { siteConfig } from "@/lib/site-config"
 
 export function ModalPedido() {
   const router = useRouter()
@@ -48,7 +49,7 @@ export function ModalPedido() {
       sku: produtoBase.sku,
       size: produtoBase.size,
       price: produtoBase.rentalPrice || 0,
-      image: produtoBase.images?.[0] || produtoBase.image || "/placeholder.jpg",
+      image: produtoBase.images?.[0] || produtoBase.image || siteConfig.placeholderUrl,
       stock: "alugado"
     }
     setLocalItems([...localItems, novoItem])
@@ -206,8 +207,7 @@ export function ModalPedido() {
                   <p className="text-sm text-muted-foreground italic text-center col-span-full py-6">Nenhuma peça encontrada.</p>
                 ) : (
                   produtosDisponiveis.map(p => {
-                    // CORREÇÃO AQUI: Forçando a leitura como (p as any) para evitar erro de TypeScript do .image antigo
-                    const finalImg = p.images?.[0] || (p as any).image || "/placeholder.jpg";
+                    const finalImg = p.images?.[0] || (p as any).image || siteConfig.placeholderUrl;
                     return (
                       <div key={p.id} className="flex items-center gap-3 bg-white p-2 rounded-xl border border-border hover:border-primary/40 transition-colors shadow-sm">
                         <div className="relative w-10 h-14 rounded-md overflow-hidden bg-secondary shrink-0">

@@ -143,6 +143,7 @@ interface AdminStore {
   deleteCollection: (id: string) => void;
   orders: Order[];
   setOrders: (orders: Order[]) => void;
+  addOrder: (order: Order) => void; // <-- ADICIONADO NA INTERFACE
   updateOrderStatus: (id: string, status: OrderStatus) => void;
   updateOrderFinancial: (id: string, data: Partial<Order>) => void;
   updateOrderItems: (id: string, items: DressItem[]) => void;
@@ -208,6 +209,8 @@ export const useAdminStore = create<AdminStore>((set) => ({
     })),
   orders: [],
   setOrders: (orders) => set({ orders }),
+  addOrder: (order) => 
+    set((state) => ({ orders: [order, ...state.orders] })), // <-- ADICIONADO NA IMPLEMENTAÇÃO
   updateOrderStatus: (id, status) =>
     set((state) => ({
       orders: state.orders.map((o) => (o.id === id ? { ...o, status } : o)),
